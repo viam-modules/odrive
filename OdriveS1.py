@@ -1,5 +1,4 @@
 import asyncio
-import time
 import argparse
 from typing import Any, Optional, Tuple, Dict
 
@@ -54,7 +53,7 @@ class OdriveS1(Motor, Reconfigurable):
         self.odrv.axis0.requested_state = AxisState.IDLE
 
     async def is_powered(self, extra: Optional[Dict[str, Any]] = None, **kwargs) -> Tuple[bool, float]:
-        return (self.odrv.axis0.requested_state != AxisState.IDLE, self.odrv.axis0.pos_vel_mapper.vel/self.max_rpm)
+        return (self.odrv.axis0.requested_state != AxisState.IDLE and self.odrv.axis0.requested_state != AxisState.UNDEFINED, self.odrv.axis0.pos_vel_mapper.vel/self.max_rpm)
 
     async def is_moving(self):
         return abs(self.odrv.axis0.pos_vel_mapper.vel) > .0005
@@ -70,36 +69,37 @@ class OdriveS1(Motor, Reconfigurable):
         self.odrv.axis0.requested_state = AxisState.CLOSED_LOOP_CONTROL
         return
 
-def handle_set_power(args, odrv):
+async def handle_set_power(args, odrv):
     if not args.power:
         print("--power must be provided in order to set power")
     else:
-        odrv.set_power(args.power)
+        await odrv.set_power(args.power)
 
-def handle_go(args, odrv):
+async def handle_go(args, odrv):
     if not args.rpm or not args.revolutions:
         print("--rpm and --revolutions must be provided in order to go functions")
     elif args.go_for:
-        odrv.go_for(args.rpm, args.revolutions)
+        await odrv.go_for(args.rpm, args.revolutions)
     elif args.go_tp:
-        odrv.go_to(args.rpm, args.revolutions)
+        await odrv.go_to(args.rpm, args.revolutions)
 
-def handle_request(args):
+async def handle_request(args):
     odrv = OdriveS1(args.max_rpm, args.max_velocity, args.serial_number)
     if args.set_power:
-        handle_set_power(args, odrv)
+        await handle_set_power(args, odrv)
     elif args.go_for or args.go_to:
-        handle_go(args, odrv)
+        await handle_go(args, odrv)
     elif args.get_position:
-        return odrv.get_position()
+        print(await odrv.get_position())
     elif args.get_properties:
-        return odrv.get_properties()
+        return await odrv.get_properties()
     elif args.stop:
-        return odrv.stop()
+        return await odrv.stop()
     elif args.is_powered:
-        return odrv.is_powered()
+        is_powered, power = await odrv.is_powered()
+        print(f"{is_powered} {power}")
     elif args.is_moving:
-        return odrv.is_moving()
+        print(await odrv.is_moving())
 
 if __name__=='__main__':
     parser = argparse.ArgumentParser()
@@ -109,17 +109,17 @@ if __name__=='__main__':
     parser.add_argument('--set-power', dest='set_power', action='store_true')
     parser.add_argument('--go-for', dest='go_for', action='store_true')
     parser.add_argument('--go-to', dest='go_to', action='store_true')
-    parser.add_argument('--reset_zero_position', dest='reset-zero-position', action='store_true')
-    parser.add_argument('--get_position', dest='get-position', action='store_true')
-    parser.add_argument('--get_properties', dest='get-properties', action='store_true')
+    parser.add_argument('--reset-zero-position', dest='reset-zero-position', action='store_true')
+    parser.add_argument('--get-position', dest='get_position', action='store_true')
+    parser.add_argument('--get-properties', dest='get_properties', action='store_true')
     parser.add_argument('--stop', dest='stop', action='store_true')
-    parser.add_argument('--is_powered', dest='is-powered', action='store_true')
-    parser.add_argument('--is_moving', dest='is-moving', action='store_true')
+    parser.add_argument('--is-powered', dest='is_powered', action='store_true')
+    parser.add_argument('--is-moving', dest='is_moving', action='store_true')
 
     parser.add_argument('--power', dest='power', type=float)
     parser.add_argument('--rpm', dest='rpm', type=float)
     parser.add_argument('--revolutions', dest='revolutions', type=float)
     
     args = parser.parse_args()
-    handle_request(args)
+    asyncio.run(handle_request(args))
     
