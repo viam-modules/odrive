@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/edaniels/golog"
+	"github.com/pkg/errors"
 	goutils "go.viam.com/utils"
 
 	"go.viam.com/rdk/components/generic"
@@ -20,12 +21,35 @@ import (
 
 var model = resource.NewModel("viamlabs", "motor", "odriveS1")
 
+type OdriveConfig struct {
+	SerialNumber     float64 `json:"serial_number,omitmepty"`
+	MaxRPM           float64 `json:"max_rpm"`
+	MaxVelocity      float64 `json:"max_velocity"`
+	OdriveConfigFile string  `json:"odrive_config_file,omitempty"`
+}
+
+type OdriveS1 struct {
+	name   string
+	cancel func()
+	logger golog.Logger
+
+	// generic.Unimplemented is a helper that embeds an unimplemented error in the Do method.
+	generic.Unimplemented
+
+	// offset keeps track of the difference between the user specified 0 position (changed through reset_zero_position) and the encoder 0 position.
+	offset            float64
+	serialNumber      string
+	maxRPM            float64
+	maxVelocity       float64
+	positionReporting bool
+}
+
 func main() {
 	goutils.ContextualMain(mainWithArgs, golog.NewDevelopmentLogger("odriveMotorModule"))
 }
 
 func mainWithArgs(ctx context.Context, args []string, logger golog.Logger) (err error) {
-	registerMotor()
+	registerOdrive(logger)
 	modalModule, err := module.NewModuleFromArgs(ctx, logger)
 
 	if err != nil {
@@ -44,9 +68,9 @@ func mainWithArgs(ctx context.Context, args []string, logger golog.Logger) (err 
 }
 
 // helper function to add the base's constructor and metadata to the component registry, so that we can later construct it.
-func registerMotor() {
+func registerOdrive(logger golog.Logger) {
 	registry.RegisterComponent(
-		motor.Subtype, // the "base" API: "rdk:component:base"
+		motor.Subtype,
 		model,
 		registry.Component{Constructor: func(
 			ctx context.Context,
@@ -54,40 +78,52 @@ func registerMotor() {
 			config config.Component,
 			logger golog.Logger,
 		) (interface{}, error) {
-			return newMotor(config.Name, logger)
+			return newOdrive(config, logger)
 		}})
 }
 
-func newMotor(name string, logger golog.Logger) (motor.Motor, error) {
+func newOdrive(rawConfig config.Component, logger golog.Logger) (motor.Motor, error) {
 	_, cancel := context.WithCancel(context.Background())
 	odrive := &OdriveS1{
-		name:   name,
+		name:   rawConfig.Name,
 		cancel: cancel,
 		logger: logger,
 	}
+	serialNumber, ok := rawConfig.Attributes["serial_number"]
+	if ok {
+		odrive.serialNumber = serialNumber.(string)
+	} else {
+		logger.Warn("No serial number provided for the odrive. Using any odrive that is connected")
+	}
+	maxRPM, ok := rawConfig.Attributes["max_rpm"]
+	if !ok {
+		return nil, errors.New("Must provide a max_rpm for motors controlled by an odrive")
+	}
+	odrive.maxRPM = maxRPM.(float64)
+
+	if odriveConfigFile, ok := rawConfig.Attributes["odrive_config_file"].(string); ok {
+		exec.Command("python3", "odrivetool", "restore-config", odriveConfigFile).Run()
+	}
+
 	return odrive, nil
-}
-
-type OdriveS1 struct {
-	name              string
-	cancel            func()
-	logger            golog.Logger
-	PositionReporting bool
-
-	// generic.Unimplemented is a helper that embeds an unimplemented error in the Do method.
-	generic.Unimplemented
 }
 
 // Position returns motor position in rotations.
 func (m *OdriveS1) Position(ctx context.Context, extra map[string]interface{}) (float64, error) {
-	cmd := exec.Command("python3", "../OdriveS1.py", "--get-position", "--max-rpm", "10", "--max-velocity", "10")
+	cmd := exec.Command("python3",
+		"../OdriveS1.py",
+		"--serial-number",
+		fmt.Sprintf("%s", m.serialNumber),
+		"--get-position",
+		"--offset",
+		fmt.Sprintf("%f", m.offset))
 
-	position, err := cmd.Output()
+	output, err := cmd.Output()
 	if err != nil {
 		return 0, err
 	}
 
-	pos, err := m.Float64frombytes(position)
+	pos, err := m.Float64frombytes(output)
 	if err != nil {
 		return 0, err
 	}
@@ -97,50 +133,129 @@ func (m *OdriveS1) Position(ctx context.Context, extra map[string]interface{}) (
 // Properties returns the status of whether the motor supports certain optional features.
 func (m *OdriveS1) Properties(ctx context.Context, extra map[string]interface{}) (map[motor.Feature]bool, error) {
 	return map[motor.Feature]bool{
-		motor.PositionReporting: m.PositionReporting,
+		motor.PositionReporting: true,
 	}, nil
 }
 
 // SetPower sets the given power percentage.
 func (m *OdriveS1) SetPower(ctx context.Context, powerPct float64, extra map[string]interface{}) error {
-	cmd := exec.Command("python3", "../OdriveS1.py", "--set-power", "--max-rpm", "600", "--max-velocity", "10", "--power", ".15")
+	cmd := exec.Command("python3",
+		"../OdriveS1.py",
+		"--serial-number",
+		fmt.Sprintf("%s", m.serialNumber),
+		"--set-power",
+		"--max-rpm",
+		fmt.Sprintf("%f", m.maxRPM),
+		"--power",
+		fmt.Sprintf("%f", powerPct))
 
-	_, err := cmd.Output()
+	output, err := cmd.Output()
 	if err != nil {
 		return err
 	}
+
+	output_str := fmt.Sprintf("%s", output)
+	if output_str != "" {
+		m.logger.Error(fmt.Sprintf("%s", output))
+	}
+
 	return nil
 }
 
 // GoFor sets the given direction and an arbitrary power percentage.
 func (m *OdriveS1) GoFor(ctx context.Context, rpm, revolutions float64, extra map[string]interface{}) error {
+	cmd := exec.Command("python3",
+		"../OdriveS1.py",
+		"--serial-number",
+		fmt.Sprintf("%s", m.serialNumber),
+		"--go-for",
+		"--rpm",
+		fmt.Sprintf("%f", rpm),
+		"--revolutions",
+		fmt.Sprintf("%f", revolutions),
+		"--offset",
+		fmt.Sprintf("%f", m.offset))
+
+	output, err := cmd.Output()
+	if err != nil {
+		return err
+	}
+
+	output_str := fmt.Sprintf("%s", output)
+	if output_str != "" {
+		m.logger.Error(fmt.Sprintf("%s", output))
+	}
+
 	return nil
 }
 
 // GoTo sets the given direction and an arbitrary power percentage for now.
 func (m *OdriveS1) GoTo(ctx context.Context, rpm, pos float64, extra map[string]interface{}) error {
+	cmd := exec.Command("python3",
+		"../OdriveS1.py",
+		"--serial-number",
+		fmt.Sprintf("%s", m.serialNumber),
+		"--go-to",
+		"--rpm",
+		fmt.Sprintf("%f", rpm),
+		"--revolutions",
+		fmt.Sprintf("%f", pos),
+		"--offset",
+		fmt.Sprintf("%f", m.offset))
+
+	output, err := cmd.Output()
+	if err != nil {
+		return err
+	}
+
+	output_str := fmt.Sprintf("%s", output)
+	if output_str != "" {
+		m.logger.Error(fmt.Sprintf("%s", output))
+	}
+
 	return nil
 }
 
 // ResetZeroPosition
 func (m *OdriveS1) ResetZeroPosition(ctx context.Context, offset float64, extra map[string]interface{}) error {
+	pos, err := m.Position(ctx, make(map[string]interface{}))
+	if err != nil {
+		return err
+	}
+	m.offset += pos
 	return nil
 }
 
 // Stop
 func (m *OdriveS1) Stop(ctx context.Context, extra map[string]interface{}) error {
-	cmd := exec.Command("python3", "../OdriveS1.py", "--stop", "--max-rpm", "10", "--max-velocity", "10")
+	cmd := exec.Command("python3",
+		"../OdriveS1.py",
+		"--serial-number",
+		fmt.Sprintf("%s", m.serialNumber),
+		"--stop")
 
-	_, err := cmd.Output()
+	output, err := cmd.Output()
 	if err != nil {
 		return err
 	}
+
+	output_str := fmt.Sprintf("%s", output)
+	if output_str != "" {
+		m.logger.Error(fmt.Sprintf("%s", output))
+	}
+
 	return nil
 }
 
 // IsPowered returns if the motor is pretending to be on or not, and its power level.
 func (m *OdriveS1) IsPowered(ctx context.Context, extra map[string]interface{}) (bool, float64, error) {
-	cmd := exec.Command("python3", "../OdriveS1.py", "--is-powered", "--max-rpm", "10", "--max-velocity", "10")
+	cmd := exec.Command("python3",
+		"../OdriveS1.py",
+		"--serial-number",
+		fmt.Sprintf("%s", m.serialNumber),
+		"--is-powered",
+		"--max-rpm",
+		fmt.Sprintf("%f", m.maxRPM))
 
 	output, err := cmd.Output()
 	if err != nil {
@@ -154,6 +269,7 @@ func (m *OdriveS1) IsPowered(ctx context.Context, extra map[string]interface{}) 
 
 	power, err := strconv.ParseFloat(outputSlice[1], 64)
 	if err != nil {
+		m.logger.Error(fmt.Sprintf("%s", output))
 		return false, 0, err
 	}
 
@@ -162,7 +278,11 @@ func (m *OdriveS1) IsPowered(ctx context.Context, extra map[string]interface{}) 
 
 // IsMoving returns if the motor is pretending to be moving or not.
 func (m *OdriveS1) IsMoving(ctx context.Context) (bool, error) {
-	cmd := exec.Command("python3", "../OdriveS1.py", "--is-moving", "--max-rpm", "10", "--max-velocity", "10")
+	cmd := exec.Command("python3",
+		"../OdriveS1.py",
+		"--serial-number",
+		fmt.Sprintf("%s", m.serialNumber),
+		"--is-moving")
 
 	output, err := cmd.Output()
 	if err != nil {
@@ -172,6 +292,10 @@ func (m *OdriveS1) IsMoving(ctx context.Context) (bool, error) {
 	outputString := strings.ReplaceAll(fmt.Sprintf("%s", output), "\n", "")
 	isMoving := outputString == "True"
 
+	if !isMoving && outputString != "False" {
+		m.logger.Error(fmt.Sprintf("%s", output))
+	}
+
 	return isMoving, nil
 }
 
@@ -179,6 +303,7 @@ func (m *OdriveS1) Float64frombytes(bytes []byte) (float64, error) {
 	text := strings.ReplaceAll(fmt.Sprintf("%s", bytes), "\n", "")
 	float, err := strconv.ParseFloat(text, 64)
 	if err != nil {
+		m.logger.Error(fmt.Sprintf("%s", text))
 		return 0, err
 	}
 	return float, nil
