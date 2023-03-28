@@ -9,6 +9,8 @@ import odrive
 from odrive.enums import *
 import fibre.libfibre
 
+MINUTE_TO_SECOND = 60
+
 class OdriveS1(Motor, Reconfigurable):
     max_rpm: float
     vel_limit: float
@@ -23,7 +25,7 @@ class OdriveS1(Motor, Reconfigurable):
             continue
     
     def configure_trap_trajectory(self, rpm) -> None:
-        rps = rpm / 60
+        rps = rpm / MINUTE_TO_SECOND
         self.odrv.axis0.trap_traj.config.vel_limit = rps
         self.odrv.axis0.trap_traj.config.accel_limit = rps
         self.odrv.axis0.trap_traj.config.decel_limit = rps
@@ -41,7 +43,7 @@ class OdriveS1(Motor, Reconfigurable):
             print("--max-rpm must be provided in order to set power")
             return 
         
-        vel = args.power * (args.max_rpm / 60)
+        vel = args.power * (args.max_rpm / MINUTE_TO_SECOND)
         self.odrv.axis0.controller.config.input_mode = InputMode.PASSTHROUGH
         self.odrv.axis0.controller.config.control_mode = ControlMode.VELOCITY_CONTROL
         self.odrv.axis0.requested_state = AxisState.CLOSED_LOOP_CONTROL
@@ -65,7 +67,7 @@ class OdriveS1(Motor, Reconfigurable):
             self.odrv.axis0.controller.config.control_mode = ControlMode.VELOCITY_CONTROL
             self.odrv.axis0.requested_state = AxisState.CLOSED_LOOP_CONTROL
             self.wait_until_correct_state(AxisState.CLOSED_LOOP_CONTROL)
-            self.odrv.axis0.controller.input_vel = args.rpm / 60
+            self.odrv.axis0.controller.input_vel = args.rpm / MINUTE_TO_SECOND
         else:
             self.configure_trap_trajectory(args.rpm)
             current_position = await self.get_position(args)
@@ -106,7 +108,7 @@ class OdriveS1(Motor, Reconfigurable):
         if not args.max_rpm:
             print("--max-rpm must be provided in order to set power")
             return 
-        return (self.odrv.axis0.current_state != AxisState.IDLE and self.odrv.axis0.current_state != AxisState.UNDEFINED, self.odrv.axis0.pos_vel_mapper.vel/(args.max_rpm / 60))
+        return (self.odrv.axis0.current_state != AxisState.IDLE and self.odrv.axis0.current_state != AxisState.UNDEFINED, self.odrv.axis0.pos_vel_mapper.vel/(args.max_rpm / MINUTE_TO_SECOND))
 
     async def is_moving(self):
         return self.odrv.axis0.current_state != AxisState.IDLE
