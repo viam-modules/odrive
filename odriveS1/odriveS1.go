@@ -87,6 +87,7 @@ func newOdrive(rawConfig config.Component, logger golog.Logger) (motor.Motor, er
 		cancel: cancel,
 		logger: logger,
 	}
+	// TODO: Replace config extraction with ConvertedAttributes
 	serialNumber, ok := rawConfig.Attributes["serial_number"]
 	if ok {
 		odrive.serialNumber = serialNumber.(string)
@@ -152,8 +153,8 @@ func (m *OdriveS1) SetPower(ctx context.Context, powerPct float64, extra map[str
 		return err
 	}
 
-	output_str := fmt.Sprintf("%s", output)
-	if output_str != "" {
+	outputStr := fmt.Sprintf("%s", output)
+	if outputStr != "" {
 		m.logger.Error(fmt.Sprintf("%s", output))
 	}
 
@@ -179,8 +180,8 @@ func (m *OdriveS1) GoFor(ctx context.Context, rpm, revolutions float64, extra ma
 		return err
 	}
 
-	output_str := fmt.Sprintf("%s", output)
-	if output_str != "" {
+	outputStr := fmt.Sprintf("%s", output)
+	if outputStr != "" {
 		m.logger.Error(fmt.Sprintf("%s", output))
 	}
 
@@ -206,8 +207,8 @@ func (m *OdriveS1) GoTo(ctx context.Context, rpm, pos float64, extra map[string]
 		return err
 	}
 
-	output_str := fmt.Sprintf("%s", output)
-	if output_str != "" {
+	outputStr := fmt.Sprintf("%s", output)
+	if outputStr != "" {
 		m.logger.Error(fmt.Sprintf("%s", output))
 	}
 
@@ -237,8 +238,8 @@ func (m *OdriveS1) Stop(ctx context.Context, extra map[string]interface{}) error
 		return err
 	}
 
-	output_str := fmt.Sprintf("%s", output)
-	if output_str != "" {
+	outputStr := fmt.Sprintf("%s", output)
+	if outputStr != "" {
 		m.logger.Error(fmt.Sprintf("%s", output))
 	}
 

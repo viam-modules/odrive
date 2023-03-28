@@ -46,17 +46,18 @@ class OdriveS1(Motor, Reconfigurable):
         self.odrv.axis0.controller.config.control_mode = ControlMode.VELOCITY_CONTROL
         self.odrv.axis0.requested_state = AxisState.CLOSED_LOOP_CONTROL
         self.wait_until_correct_state(AxisState.CLOSED_LOOP_CONTROL)
+        # the line below causes motion.
         self.odrv.axis0.controller.input_vel = vel
 
     async def go_for(self, args):
         if args.rpm == None:
-            print("--rpm must be provided in order to use the go_for function")
+            print("--rpm must be provided in order to use the go functions")
             return 
         if  args.revolutions == None:
-            print("--revolutions must be provided in order to use the go_for function")
+            print("--revolutions must be provided in order to use the go functions")
             return 
         if args.offset == None:
-            print("--offset must be provided in order to to use the go_for function")
+            print("--offset must be provided in order to to use the go functions")
             return
 
         if args.revolutions == 0:
@@ -69,8 +70,10 @@ class OdriveS1(Motor, Reconfigurable):
             self.configure_trap_trajectory(args.rpm)
             current_position = await self.get_position(args)
             if args.rpm > 0:
+                # the line below causes motion.
                 self.odrv.axis0.controller.input_pos = current_position + args.revolutions + args.offset
             else:
+                # the line below causes motion.
                 self.odrv.axis0.controller.input_pos = current_position - args.revolutions + args.offset
         '''
         Should the state be set back from closed loop control to idle after completion?
@@ -79,23 +82,9 @@ class OdriveS1(Motor, Reconfigurable):
         '''
    
     async def go_to(self, args):
-        if args.rpm == None:
-            print("--rpm must be provided in order to use the go_to function")
-            return 
-        if  args.revolutions == None:
-            print("--revolutions must be provided in order to use the go_to function")
-            return 
-        if args.offset == None:
-            print("--offset must be provided in order to to use the go_to function")
-            return
-        
-        self.configure_trap_trajectory(args.rpm)
-        self.odrv.axis0.controller.input_pos = args.revolutions + args.offset
-        '''
-        Should the state be set back from closed loop control to idle after completion?
-        If so, how should we determine when this has completed? When enough time has passed for it to finish based 
-        on rpm and revolutions, or when the position is close to what we expect it to be, or other/better ideas?
-        '''
+        current_position = await self.get_position(args)
+        args.revolutions = args.revolutions - current_position
+        await self.go_for(args)
 
     async def reset_zero_position(self, float):
         pass
@@ -120,10 +109,7 @@ class OdriveS1(Motor, Reconfigurable):
         return (self.odrv.axis0.current_state != AxisState.IDLE and self.odrv.axis0.current_state != AxisState.UNDEFINED, self.odrv.axis0.pos_vel_mapper.vel/(args.max_rpm / 60))
 
     async def is_moving(self):
-        '''
-        What is best practice here? Should we say when velocity is exactly 0 or leave room for error? if leave room how much?
-        '''
-        return abs(self.odrv.axis0.pos_vel_mapper.vel) > .0005
+        return self.odrv.axis0.current_state != AxisState.IDLE
 
 # In order to get the return value from relevant functions in go, we must print the return value. 
 async def handle_request(args):
