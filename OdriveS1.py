@@ -116,6 +116,7 @@ async def handle_request(args):
     odrv = OdriveS1(args.serial_number)
     errorCode = odrv.odrv.axis0.active_errors
     if  errorCode != 0:
+        await odrv.stop()
         print(ODriveError(errorCode).name)
         return
 
