@@ -24,7 +24,6 @@ var model = resource.NewModel("viamlabs", "motor", "odriveS1")
 type OdriveConfig struct {
 	SerialNumber     float64 `json:"serial_number,omitmepty"`
 	MaxRPM           float64 `json:"max_rpm"`
-	MaxVelocity      float64 `json:"max_velocity"`
 	OdriveConfigFile string  `json:"odrive_config_file,omitempty"`
 }
 
@@ -40,7 +39,6 @@ type OdriveS1 struct {
 	offset            float64
 	serialNumber      string
 	maxRPM            float64
-	maxVelocity       float64
 	positionReporting bool
 }
 
