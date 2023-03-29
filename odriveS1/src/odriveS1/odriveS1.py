@@ -39,7 +39,6 @@ class OdriveS1(Motor, Reconfigurable):
 
         # Note/Limitation: If you have multiple odrives, you cannot specify which odrive config will be updated.
         if odriveS1.odrive_config_file != "":
-            LOGGER.info(os.popen(f"pwd").read())
             response = os.popen(f"odrivetool restore-config {odriveS1.odrive_config_file}").read()
             LOGGER.info(response.replace("\n", ""))
 
