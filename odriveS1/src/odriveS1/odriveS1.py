@@ -158,7 +158,3 @@ class OdriveS1(Motor, Reconfigurable):
         if errorCode != 0 or disarmReason != 0:
             global ERRORS_FOUND
             ERRORS_FOUND = True
-
-
-
-    
