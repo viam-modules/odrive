@@ -17,10 +17,10 @@ from threading import Thread
 import asyncio
 import time
 import os
+from .utils import set_configs
 
 LOGGER = getLogger(__name__)
 MINUTE_TO_SECOND = 60
-ERRORS_FOUND = False
 
 class OdriveS1(Motor, Reconfigurable):
     MODEL: ClassVar[Model] = Model(ModelFamily("viam-labs", "motor"), "odrive")
@@ -37,22 +37,17 @@ class OdriveS1(Motor, Reconfigurable):
         odriveS1.odrive_config_file = config.attributes.fields["odrive_config_file"].string_value
         odriveS1.offset = 0
 
-        # Note/Limitation: If you have multiple odrives, you cannot specify which odrive config will be updated.
-        if odriveS1.odrive_config_file != "":
-            response = os.popen(f"odrivetool restore-config {odriveS1.odrive_config_file}").read()
-            LOGGER.info(response.replace("\n", ""))
 
         odriveS1.odrv = odrive.find_any() if odriveS1.serial_number == "" else odrive.find_any(serial_number = odriveS1.serial_number)
         odriveS1.odrv.clear_errors()
+        
+        if odriveS1.odrive_config_file != "":
+            set_configs(odriveS1.odrv, odriveS1.odrive_config_file)
 
         def periodically_surface_errors(odrv):
             while True:
                 asyncio.run(odrv.surface_errors())
                 time.sleep(1)
-                
-                LOGGER.warn(ERRORS_FOUND)
-                if ERRORS_FOUND:
-                    return
 
         thread = Thread(target = periodically_surface_errors, args=[odriveS1])
         thread.setDaemon(True) 
@@ -64,8 +59,11 @@ class OdriveS1(Motor, Reconfigurable):
         self.serial_number = config.attributes.fields["serial_number"].string_value
         self.max_rpm = config.attributes.fields["max_rpm"].number_value
         
-        if config.attributes.fields["odrive_config_file"].string_value != self.odrive_config_file:
-            LOGGER.error("Cannot reconfigure the odrive directly. Please restart the viam-server.")
+        config_file = config.attributes.fields["odrive_config_file"].string_value
+        if (config_file != self.odrive_config_file) and config_file != "":
+            LOGGER.info("Updating odrive configurations.")
+            self.odrive_config_file = config_file
+            set_configs(self.odrv, self.odrive_config_file)
 
     async def set_power(self, power: float, extra: Optional[Dict[str, Any]] = None, **kwargs):
         vel = power * (self.max_rpm / MINUTE_TO_SECOND)
@@ -131,7 +129,6 @@ class OdriveS1(Motor, Reconfigurable):
         while self.odrv.axis0.current_state != state:
             await self.surface_errors()
             continue
-    
 
     # Function to wait 1.05% of time we expect go for to take, and set the motor to IDLE
     async def wait_and_set_to_idle(self, rps, revolutions):
@@ -155,5 +152,4 @@ class OdriveS1(Motor, Reconfigurable):
             LOGGER.error(ODriveError(disarmReason).name)
         
         if errorCode != 0 or disarmReason != 0:
-            global ERRORS_FOUND
-            ERRORS_FOUND = True
+            self.odrv.clear_errors()
