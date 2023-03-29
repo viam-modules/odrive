@@ -32,3 +32,4 @@ def set_configs(odrv, config_path):
 
     for k,v in flatten(configs).items():
         rsetattr(odrv, k, v)
+        
