@@ -1,6 +1,4 @@
-#!/bin/bash
-
+#!/bin/sh
 cd `dirname $0`
 
-go build ./
-exec ./odriveS1 $@
+exec /opt/homebrew/Caskroom/miniconda/base/envs/pysdk/bin/python -m src.main $@

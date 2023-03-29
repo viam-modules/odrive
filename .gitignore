@@ -16,4 +16,6 @@
 
 # Testing files
 testing.py
-config.json
+*config.json
+
+__pycache__/
