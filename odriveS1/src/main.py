@@ -8,7 +8,7 @@ from .odriveS1.odriveS1 import OdriveS1
 
 async def main(address: str):
     """This function creates and starts a new module, after adding all desired resources.
-    Resources must be pre-registered. For an example, see the `gizmo.__init__.py` file.
+    Resources must be pre-registered. For an example, see the `odriveS1.__init__.py` file.
     Args:
         address (str): The address to serve the module on
     """

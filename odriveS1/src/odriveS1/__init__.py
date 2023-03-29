@@ -1,5 +1,5 @@
 """
-This file odriveS1 model  with the Viam Registry.
+This files odriveS1 model with the Viam Registry.
 """
 
 from viam.resource.registry import Registry
