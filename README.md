@@ -11,7 +11,7 @@
   ],
   "components": [
     {
-      "model": "viamlabs:motor:odriveS1",
+      "model": "viam-labs:motor:odriveS1",
       "namespace": "rdk",
       "attributes": {
         "max_rpm": 600,
