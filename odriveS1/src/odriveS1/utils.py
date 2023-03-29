@@ -4,6 +4,7 @@ from functools import reduce
 from collections.abc import MutableMapping
 
 # thank you to https://stackoverflow.com/questions/6027558/flatten-nested-dictionaries-compressing-keys for flatten
+
 def flatten(d, parent_key='', sep='.'):
     items = []
     for k, v in d.items():
