@@ -30,7 +30,6 @@ class Odrive(Motor, Reconfigurable):
         if config.attributes.fields["connection_type"].string_value == "canbus":
             odrive.MODEL = ClassVar[Model] = Model(ModelFamily("viam-labs", "motor"), "odrive-can")
             obj = OdriveCAN()
-            # print("MAX_RPM:", obj.offset)
             return obj
         else:
             return OdriveS1.new

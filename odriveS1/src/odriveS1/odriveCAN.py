@@ -36,6 +36,7 @@ class OdriveCAN(Motor, Reconfigurable):
     serial_number: str
     max_rpm: float
     odrive_config_file: str
+    baud_rate: str
     odrv: Any
 
     @classmethod
@@ -44,12 +45,12 @@ class OdriveCAN(Motor, Reconfigurable):
         odriveCAN.offset = 0.0
         odriveCAN.max_rpm = config.attributes.fields["max_rpm"].number_value
         odriveCAN.odrive_config_file = config.attributes.fields["odrive_config_file"].string_value
-        
-        os.system("sudo ip link set can0 down")
-        os.system("sudo ip link set can0 up type can bitrate 250000")
+        odriveCAN.baud_rate = config.attributes.fields["canbus_baud_rate"].string_value
 
-        odriveCAN.odrv = odrive.find_any() 
-        # if odriveCAN.serial_number == "" else odrive.find_any(serial_number = odriveCAN.serial_number)
+        # os.system("sudo ip link set can0 down")
+        # os.system("sudo ip link set can0 up type can bitrate " + odriveCAN.baud_rate)
+
+        odriveCAN.odrv = odrive.find_any() if odriveCAN.serial_number == "" else odrive.find_any(serial_number = odriveCAN.serial_number)
         odriveCAN.odrv.clear_errors()
         
         if odriveCAN.odrive_config_file != "":
@@ -68,6 +69,12 @@ class OdriveCAN(Motor, Reconfigurable):
     
     def reconfigure(self, config: ComponentConfig, dependencies: Mapping[ResourceName, ResourceBase]):
         self.max_rpm = config.attributes.fields["max_rpm"].number_value
+
+        baud_rate = config.attributes.fields["canbus_baud_rate"].string_value
+        if baud_rate != self.baud_rate:
+            self.baud_rate = baud_rate
+            # os.system("sudo ip link set can0 down")
+            # os.system("sudo ip link set can0 up type can bitrate " + self.baud_rate)
         
         config_file = config.attributes.fields["odrive_config_file"].string_value
         if (config_file != self.odrive_config_file) and config_file != "":
