@@ -1,4 +1,4 @@
 #!/bin/sh
 cd `dirname $0`
 
-exec /opt/homebrew/Caskroom/miniconda/base/envs/pysdk/bin/python -m src.main $@
+exec /usr/bin/python3 -m src.main $@
