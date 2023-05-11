@@ -27,10 +27,11 @@ class Odrive(Motor, Reconfigurable):
     @classmethod
     def new(cls, config: ComponentConfig, dependencies: Mapping[ResourceName, ResourceBase]) -> Self:
         odrive = cls(config.name)
+        print("start")
         if config.attributes.fields["connection_type"].string_value == "canbus":
             odrive.MODEL = ClassVar[Model] = Model(ModelFamily("viam-labs", "motor"), "odrive-can")
+            print("here")
             obj = OdriveCAN()
             return obj
         else:
             return OdriveS1.new
-

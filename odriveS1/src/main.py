@@ -4,7 +4,7 @@ import sys
 from viam.proto.app.robot import ComponentConfig
 from viam.components.motor import Motor
 from viam.module.module import Module
-from .odriveS1.odrive import Odrive
+from .odriveS1.odriveSetup import Odrive
 
 async def main(address: str):
     """This function creates and starts a new module, after adding all desired resources.
