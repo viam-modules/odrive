@@ -12,26 +12,18 @@ from viam.logging import getLogger
 
 from odrive.enums import *
 from .odriveCAN import OdriveCAN
-from .odriveS1 import OdriveS1
+from .odriveSerial import OdriveSerial
 
 LOGGER = getLogger(__name__)
 MINUTE_TO_SECOND = 60
 
 class Odrive(Motor, Reconfigurable):
-    MODEL: ClassVar[Model] = Model(ModelFamily("viam-labs", "motor"), "odrive")
-    serial_number: str
-    max_rpm: float
-    odrive_config_file: str
-    odrv: Any
+    MODEL: ClassVar[Model] = Model(ModelFamily("viam-labs", "motor"), "odrive-serial")
 
     @classmethod
     def new(cls, config: ComponentConfig, dependencies: Mapping[ResourceName, ResourceBase]) -> Self:
         odrive = cls(config.name)
-        print("start")
         if config.attributes.fields["connection_type"].string_value == "canbus":
             odrive.MODEL = ClassVar[Model] = Model(ModelFamily("viam-labs", "motor"), "odrive-can")
-            print("here")
-            obj = OdriveCAN()
-            return obj
         else:
-            return OdriveS1.new
+            odrive.MODEL = ClassVar[Model] = Model(ModelFamily("viam-labs", "motor"), "odrive-serial")

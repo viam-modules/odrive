@@ -1,4 +1,4 @@
-from typing import ClassVar, Mapping, Sequence, Any, Dict, Optional, Tuple
+from typing import ClassVar, Mapping, Any, Dict, Optional, Tuple
 
 from typing_extensions import Self
 
@@ -17,49 +17,69 @@ from threading import Thread
 import asyncio
 import time
 import os
-from .utils import set_configs
+from .utils import set_configs, find_baudrate, rsetattr, find_motor_configs
 
 import can
 import cantools
 import time
 
-db = cantools.database.load_file("/home/mj1/odrive/odriveS1/odrive-cansimple.dbc")
+db = cantools.database.load_file("odrive-cansimple.dbc")
 bus = can.Bus("can0", bustype="socketcan")
 
 LOGGER = getLogger(__name__)
-MINUTE_TO_SECOND = 60
+MINUTE_TO_SECOND = 60.0
 
 class OdriveCAN(Motor, Reconfigurable):
     MODEL: ClassVar[Model] = Model(ModelFamily("viam-labs", "motor"), "odrive-canbus")
-    max_rpm: float
     odrive_config_file: str
+    offset: float
     baud_rate: str
     odrv: Any
     nodeID: int
+    torque_constant: float
+    current_soft_max: float
 
     @classmethod
     def new(cls, config: ComponentConfig, dependencies: Mapping[ResourceName, ResourceBase]) -> Self:
         odriveCAN = cls(config.name)
-        odriveCAN.max_rpm = config.attributes.fields["max_rpm"].number_value
         odriveCAN.odrive_config_file = config.attributes.fields["odrive_config_file"].string_value
-        odriveCAN.nodeID = config.attributes.fields["canbus_node_id"].number_value
-        baud_rate = config.attributes.fields["canbus_baud_rate"].string_value
-        odriveCAN.baud_rate = baud_rate[0:len(baud_rate)-1] + "000"
+        odriveCAN.nodeID = int(config.attributes.fields["canbus_node_id"].number_value)
+        odriveCAN.torque_constant = 1
+        odriveCAN.current_soft_max = 60
         odriveCAN.offset = 0.0
 
-        if odriveCAN.odrive_config_file != "":
-            set_configs(odriveCAN.odrv, odriveCAN.odrive_config_file)
+        try:
+            odriveCAN.odrv = odrive.find_any()
+            if odriveCAN.odrive_config_file != "":
+                set_configs(odriveCAN.odrv, odriveCAN.odrive_config_file)
+                rsetattr(odriveCAN.odrv, "axis0.config.can.node_id", odriveCAN.nodeID)
+                odriveCAN.torque_constant = find_motor_configs(odriveCAN.odrive_config_file, "torque_constant")
+                odriveCAN.current_soft_max = find_motor_configs(odriveCAN.odrive_config_file, "current_soft_max")
+        except TimeoutError:
+            LOGGER.warn("Could not set odrive configurations because no serial odrive connection was found.")
 
-        # why does this not work
+        if config.attributes.fields["canbus_baud_rate"].string_value != "":
+            baud_rate = config.attributes.fields["canbus_baud_rate"].string_value
+            odriveCAN.baud_rate = baud_rate[0:len(baud_rate)-1] + "000"
+        elif odriveCAN.odrive_config_file != "":
+            baud_rate = find_baudrate(odriveCAN.odrive_config_file)
+            odriveCAN.baud_rate = str(baud_rate)
+        else:
+            odriveCAN.baud_rate = "250000"
+
         os.system("sudo ip link set can0 down")
         os.system("sudo ip link set can0 up type can bitrate " + odriveCAN.baud_rate)
+        # send an arbitrary message because the first message sent over CAN does not go through
+        msg = db.get_message_by_name('Clear_Errors')
+        msg = can.Message(arbitration_id=msg.frame_id | odriveCAN.nodeID << 5, is_extended_id=False)
+        try:
+            bus.send(msg)
+        except can.CanError:
+            pass
 
-        odriveCAN.odrv = odrive.find_any()
-        odriveCAN.odrv.clear_errors()
-
-        def periodically_surface_errors(odrv):
+        def periodically_surface_errors(odriveCAN):
             while True:
-                asyncio.run(odrv.surface_errors())
+                asyncio.run(odriveCAN.surface_errors())
                 time.sleep(1)
 
         thread = Thread(target = periodically_surface_errors, args=[odriveCAN])
@@ -69,24 +89,28 @@ class OdriveCAN(Motor, Reconfigurable):
         return odriveCAN
 
     def reconfigure(self, config: ComponentConfig, dependencies: Mapping[ResourceName, ResourceBase]):
-        self.max_rpm = config.attributes.fields["max_rpm"].number_value
-
-        baud_rate = config.attributes.fields["canbus_baud_rate"].string_value
-        baud_rate = baud_rate[0:len(baud_rate)-1] + "000"
+        baud_rate = "250000"
+        if config.attributes.fields["canbus_baud_rate"].string_value != "":
+            baud_rate = config.attributes.fields["canbus_baud_rate"].string_value
+            baud_rate = baud_rate[0:len(baud_rate)-1] + "000"
 
         if baud_rate != self.baud_rate:
             self.baud_rate = baud_rate
             os.system("sudo ip link set can0 down")
             os.system("sudo ip link set can0 up type can bitrate " + self.baud_rate)
+            msg = db.get_message_by_name('Clear_Errors')
+            msg = can.Message(arbitration_id=msg.frame_id | self.nodeID << 5, is_extended_id=False)
+            try:
+                bus.send(msg)
+            except can.CanError:
+                pass
         
-        config_file = config.attributes.fields["odrive_config_file"].string_value
-        if (config_file != self.odrive_config_file) and config_file != "":
-            LOGGER.info("Updating odrive configurations.")
-            self.odrive_config_file = config_file
-            set_configs(self.odrv, self.odrive_config_file)
+        new_nodeID = config.attributes.fields["canbus_node_id"].number_value
+        if new_nodeID != self.nodeID:
+            self.set_node_id(new_nodeID)
 
     async def set_power(self, power: float, extra: Optional[Dict[str, Any]] = None, **kwargs):
-        vel = power * (self.max_rpm / 60)
+        torque = power*self.current_soft_max*self.torque_constant
 
         msg = db.get_message_by_name('Set_Axis_State')
         data = msg.encode({'Axis_Requested_State': 0x08})
@@ -95,17 +119,17 @@ class OdriveCAN(Motor, Reconfigurable):
         await self.wait_until_correct_state(AxisState.CLOSED_LOOP_CONTROL)
 
         msg = db.get_message_by_name('Set_Controller_Mode')
-        data = msg.encode({'Control_Mode': 0x02, 'Input_Mode': 0x01})
+        data = msg.encode({'Control_Mode': 0x01, 'Input_Mode': 0x01})
         msg = can.Message(arbitration_id=0x00B | self.nodeID << 5, is_extended_id=False, data=data)
         await self.try_send(msg)
 
-        msg = db.get_message_by_name('Set_Input_Vel')
-        data = msg.encode({'Input_Vel': vel, 'Input_Torque_FF': 0})
-        msg = can.Message(arbitration_id=0x00D | self.nodeID << 5, is_extended_id=False, data=data)
+        msg = db.get_message_by_name('Set_Input_Torque')
+        data = msg.encode({'Input_Torque': torque})
+        msg = can.Message(arbitration_id=0x00E | self.nodeID << 5, is_extended_id=False, data=data)
         await self.try_send(msg)
 
     async def go_for(self, rpm: float, revolutions: float, extra: Optional[Dict[str, Any]] = None, **kwargs):
-        rps = rpm/60.0
+        rps = rpm / MINUTE_TO_SECOND
 
         msg = db.get_message_by_name('Set_Axis_State')
         data = msg.encode({'Axis_Requested_State': 0x08})
@@ -194,9 +218,7 @@ class OdriveCAN(Motor, Reconfigurable):
         msg = can.Message(arbitration_id=msg.frame_id | self.nodeID << 5, is_extended_id=False, data=data)
         await self.try_send(msg)
 
-        msg = db.get_message_by_name('Clear_Errors')
-        msg = can.Message(arbitration_id=msg.frame_id | self.nodeID << 5, is_extended_id=False)
-        await self.try_send(msg)
+        self.clear_errors()
 
     async def is_powered(self, extra: Optional[Dict[str, Any]] = None, **kwargs) -> Tuple[bool, float]:
         current_power = 0
@@ -204,15 +226,15 @@ class OdriveCAN(Motor, Reconfigurable):
             if msg.arbitration_id == ((self.nodeID << 5) | db.get_message_by_name('Heartbeat').frame_id):
                 current_state = db.decode_message('Heartbeat', msg.data)['Axis_State']
                 if (current_state != 0x0) & (current_state != 0x1):
-                    msg = db.get_message_by_name('Get_Encoder_Count')
-                    data1 = msg.encode({'Shadow_Count': 0, 'Count_in_CPR': 4000})
-                    msg = can.Message(arbitration_id=0x00A | self.nodeID << 5, is_extended_id=False, data=data1)
-                    await self.try_send(msg)
+                    msg = db.get_message_by_name('Get_Iq')
+                    data = msg.encode({'Iq_Setpoint': 0, 'Iq_Measured': 0})
+                    msg = can.Message(arbitration_id=0x014 | self.nodeID << 5, is_extended_id=False, data=data)
+                    self.try_send(msg)
 
                     for msg1 in bus:
-                        if msg1.arbitration_id == ((self.nodeID << 5) | 0x009):
-                            encoderCount = db.decode_message('Get_Encoder_Estimates', msg1.data)
-                            current_power = encoderCount['Vel_Estimate']/(self.max_rpm/60)
+                        if msg1.arbitration_id == ((self.nodeID << 5) | 0x014):
+                            current = db.decode_message('Get_Iq', msg1.data)['Iq_Setpoint']
+                            current_power = current/self.current_soft_max
                             return [True, current_power]
                 else:
                     return [False, 0]
@@ -249,7 +271,7 @@ class OdriveCAN(Motor, Reconfigurable):
         try:
             bus.send(msg)
         except can.CanError:
-            LOGGER.error("Message NOT sent!  Please verify can0 is working first")
+            LOGGER.error("Message NOT sent! Please verify can0 is working first")
 
     async def surface_errors(self):
         for msg in bus:
@@ -259,6 +281,16 @@ class OdriveCAN(Motor, Reconfigurable):
                     await self.stop()
                     LOGGER.error("axis:", ODriveError(errors).name)
             
-                    msg = db.get_message_by_name('Clear_Errors')
-                    msg = can.Message(arbitration_id=msg.frame_id | self.nodeID << 5, is_extended_id=False)
-                    await self.try_send(msg)
+                    self.clear_errors()
+    
+    async def clear_errors(self):
+        msg = db.get_message_by_name('Clear_Errors')
+        msg = can.Message(arbitration_id=msg.frame_id | self.nodeID << 5, is_extended_id=False)
+        await self.try_send(msg)
+
+    async def set_node_id(self, new_nodeID):
+        msg = db.get_message_by_name('Set_Axis_Node_ID')
+        data = msg.encode({'Axis_Node_ID': new_nodeID})
+        msg = can.Message(arbitration_id=msg.frame_id | self.nodeID << 5, is_extended_id=False, data=data)
+        await self.try_send(msg)
+        self.nodeID = new_nodeID
