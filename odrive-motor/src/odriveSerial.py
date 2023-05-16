@@ -69,13 +69,13 @@ class OdriveSerial(Motor, Reconfigurable):
             self.current_soft_max = self.odrv.axis0.config.motor.current_soft_max
 
     async def set_power(self, power: float, extra: Optional[Dict[str, Any]] = None, **kwargs):
-        vel = power * self.current_soft_max * self.torque_constant
+        torque = power * self.current_soft_max * self.torque_constant
         self.odrv.axis0.controller.config.input_mode = InputMode.PASSTHROUGH
-        self.odrv.axis0.controller.config.control_mode = ControlMode.VELOCITY_CONTROL
+        self.odrv.axis0.controller.config.control_mode = ControlMode.TORQUE_CONTROL
         self.odrv.axis0.requested_state = AxisState.CLOSED_LOOP_CONTROL
         await self.wait_until_correct_state(AxisState.CLOSED_LOOP_CONTROL)
         # the line below causes motion.
-        self.odrv.axis0.controller.input_vel = vel
+        self.odrv.axis0.controller.input_torque = torque
 
     async def go_for(self, rpm: float, revolutions: float, extra: Optional[Dict[str, Any]] = None, **kwargs):
         rps = rpm / MINUTE_TO_SECOND

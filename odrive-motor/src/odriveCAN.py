@@ -213,12 +213,6 @@ class OdriveCAN(Motor, Reconfigurable):
         data = msg.encode({'Axis_Requested_State': 0x01})
         msg = can.Message(arbitration_id=msg.frame_id | self.nodeID << 5, is_extended_id=False, data=data)
         await self.try_send(msg)
-        
-        msg = db.get_message_by_name('Estop')
-        msg = can.Message(arbitration_id=msg.frame_id | self.nodeID << 5, is_extended_id=False, data=data)
-        await self.try_send(msg)
-
-        self.clear_errors()
 
     async def is_powered(self, extra: Optional[Dict[str, Any]] = None, **kwargs) -> Tuple[bool, float]:
         current_power = 0
