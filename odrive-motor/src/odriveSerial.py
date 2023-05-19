@@ -22,11 +22,11 @@ LOGGER = getLogger(__name__)
 MINUTE_TO_SECOND = 60
 
 class OdriveSerial(Motor, Reconfigurable):
-    MODEL: ClassVar[Model] = Model(ModelFamily("viam-labs", "motor"), "odrive-serial")
+    MODEL: ClassVar[Model] = Model(ModelFamily("viam", "motor"), "odrive-serial")
     serial_number: str
     odrive_config_file: str
     torque_constant: float
-    current_soft_max: float
+    current_lim: float
     offset: float
     odrv: Any
 
@@ -44,7 +44,7 @@ class OdriveSerial(Motor, Reconfigurable):
             set_configs(odriveSerial.odrv, odriveSerial.odrive_config_file)
         
         odriveSerial.torque_constant = odriveSerial.odrv.axis0.config.motor.torque_constant
-        odriveSerial.current_soft_max = odriveSerial.odrv.axis0.config.motor.current_soft_max
+        odriveSerial.current_lim = odriveSerial.odrv.axis0.config.general_lockin.current
 
         def periodically_surface_errors(odrv):
             while True:
@@ -66,10 +66,10 @@ class OdriveSerial(Motor, Reconfigurable):
             self.odrive_config_file = config_file
             set_configs(self.odrv, self.odrive_config_file)
             self.torque_constant = self.odrv.axis0.config.motor.torque_constant
-            self.current_soft_max = self.odrv.axis0.config.motor.current_soft_max
+            self.current_lim = self.odrv.axis0.config.general_lockin.current
 
     async def set_power(self, power: float, extra: Optional[Dict[str, Any]] = None, **kwargs):
-        torque = power * self.current_soft_max * self.torque_constant
+        torque = power * self.current_lim * self.torque_constant
         self.odrv.axis0.controller.config.input_mode = InputMode.PASSTHROUGH
         self.odrv.axis0.controller.config.control_mode = ControlMode.TORQUE_CONTROL
         self.odrv.axis0.requested_state = AxisState.CLOSED_LOOP_CONTROL
@@ -115,7 +115,7 @@ class OdriveSerial(Motor, Reconfigurable):
         self.odrv.axis0.requested_state = AxisState.IDLE
 
     async def is_powered(self, extra: Optional[Dict[str, Any]] = None, **kwargs) -> Tuple[bool, float]:
-        return (self.odrv.axis0.current_state != AxisState.IDLE and self.odrv.axis0.current_state != AxisState.UNDEFINED, self.odrv.axis0.motor.foc.Iq_setpoint/self.current_soft_max)
+        return (self.odrv.axis0.current_state != AxisState.IDLE and self.odrv.axis0.current_state != AxisState.UNDEFINED, self.odrv.axis0.motor.foc.Iq_setpoint/self.current_lim)
 
     async def is_moving(self):
         return self.odrv.axis0.current_state != AxisState.IDLE
