@@ -7,9 +7,10 @@
     * install `odrive`, `can-utils`, `python-can`, and `cantools`
 * Update the sample config as following:
     * Update the `connection_type` (string) you will be using to communicate with your motor
-      * if using a `"canbus"` connection, update the `canbus_node_id` (int) to the node ID of whichever CAN node you'd like to use
+        * if using a `"canbus"` connection, update the `canbus_node_id` (int) to the node ID of whichever CAN node you'd like to use
     * Update the `executable_path` (string) to the location of `run.sh` on your machine
 * Provide the config on app.viam.com
+* (For `"canbus"` models) You must run `sudo ip link set can0 up type can bitrate <baud_rate>` in your terminal in order to receive CAN messages. See `CAN Link Issues` in the `Troubleshooting` section for more details.
 
 ## Optional Configs
 The following optional config parameters are available for the Odrive:
@@ -84,3 +85,8 @@ The following optional config parameters are available for the Odrive:
 ### Hanging
 * If you have provided a serial number, make sure it is the correct serial number. Odrives have **2 serial numbers**: one that will be printed out when you start `odrivetool`, and one that can be accessed in `odrivetool` by running `odrv0.serial_number`. The **correct** serial number is the one that is printed out when you start `odrivetool`.
 * If you have not provided a serial number or you are sure you have provided the correct serial number, you are likely connected to the odrive elsewhere. Make sure any connections via python, `odrivetool` or the GUI are closed.
+
+### CAN Link Issues
+* If you get an error of `"Device or resource busy"`, try setting CAN down and back up with the command `sudo ip link set can0 down` followed by `sudo ip link set can0 up type can bitrate <baud_rate>`
+    * You will have to do this any time you want to change the baud rate
+* If you get an error of `"Network is down"`, try setting CAN up with the command `sudo ip link set can0 up type can bitrate <baud_rate>`

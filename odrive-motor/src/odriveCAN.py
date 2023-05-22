@@ -16,7 +16,6 @@ from odrive.enums import *
 from threading import Thread
 import asyncio
 import time
-import os
 from .utils import set_configs, find_baudrate, rsetattr, find_axis_configs
 
 import can
@@ -62,7 +61,7 @@ class OdriveCAN(Motor, Reconfigurable):
                 odriveCAN.torque_constant = find_axis_configs(odriveCAN.odrive_config_file, ["motor", "torque_constant"])
                 odriveCAN.current_limit = find_axis_configs(odriveCAN.odrive_config_file, ["general_lockin", "current"])
         except TimeoutError:
-            LOGGER.warn("Could not set odrive configurations because no serial odrive connection was found.")
+            LOGGER.error("Could not set odrive configurations because no serial odrive connection was found.")
 
         if config.attributes.fields["canbus_baud_rate"].string_value != "":
             baud_rate = config.attributes.fields["canbus_baud_rate"].string_value
@@ -74,16 +73,9 @@ class OdriveCAN(Motor, Reconfigurable):
             odriveCAN.baud_rate = str(baud_rate)
         else:
             odriveCAN.baud_rate = "250000"
-
-        Popen("sudo ip link set can0 down", shell=True).wait()
-        Popen("sudo ip link set can0 up type can bitrate " + str(baud_rate), shell=True).wait()
-        # send an arbitrary message because the first message sent over CAN does not go through
-        msg = db.get_message_by_name('Clear_Errors')
-        msg = can.Message(arbitration_id=msg.frame_id | odriveCAN.nodeID << 5, is_extended_id=False)
-        try:
-            bus.send(msg)
-        except can.CanError:
-            pass
+        
+        LOGGER.warn("Remember to run 'sudo ip link set can0 up type can bitrate <baud_rate>' "+
+                    "in your terminal. See the README Troubleshooting section for more details.")
 
         def periodically_surface_errors(odriveCAN):
             while True:
@@ -101,22 +93,20 @@ class OdriveCAN(Motor, Reconfigurable):
         return
 
     async def reconfigure(self, config: ComponentConfig, dependencies: Mapping[ResourceName, ResourceBase]):
-        baud_rate = "250000"
         if config.attributes.fields["canbus_baud_rate"].string_value != "":
             baud_rate = config.attributes.fields["canbus_baud_rate"].string_value
-            baud_rate = baud_rate[0:len(baud_rate)-1] + "000"
+            baud_rate = baud_rate.replace("k", "000")
+            baud_rate = baud_rate.replace("K", "000")
+        elif self.odrive_config_file != "":
+            baud_rate = find_baudrate(self.odrive_config_file)
+            baud_rate = str(baud_rate)
+        else:
+            baud_rate = self.baud_rate
 
         if baud_rate != self.baud_rate:
             self.baud_rate = baud_rate
-            Popen("sudo ip link set can0 down", shell=True).wait()
-            Popen("sudo ip link set can0 up type can bitrate " + str(baud_rate), shell=True).wait()
-            # send an arbitrary message because the first message sent over CAN does not go through
-            msg = db.get_message_by_name('Clear_Errors')
-            msg = can.Message(arbitration_id=msg.frame_id | self.nodeID << 5, is_extended_id=False)
-            try:
-                bus.send(msg)
-            except can.CanError:
-                pass
+            LOGGER.warn("Since you changed the baud rate, you must run 'sudo ip link set can0 up type can bitrate <baud_rate>' "+
+                         "in your terminal. See the README Troubleshooting section for more details.")
         
         new_nodeID = config.attributes.fields["canbus_node_id"].number_value
         if new_nodeID != self.nodeID:
@@ -124,32 +114,33 @@ class OdriveCAN(Motor, Reconfigurable):
 
     async def set_power(self, power: float, extra: Optional[Dict[str, Any]] = None, **kwargs):
         torque = power*self.current_limit*self.torque_constant
-        self.send_can_message('Set_Axis_State', {'Axis_Requested_State': 0x08})
+        await self.send_can_message('Set_Axis_State', {'Axis_Requested_State': 0x08})
         await self.wait_until_correct_state(AxisState.CLOSED_LOOP_CONTROL)
-        self.send_can_message('Set_Controller_Mode', {'Control_Mode': 0x01, 'Input_Mode': 0x01})
-        self.send_can_message('Set_Input_Torque', {'Input_Torque': torque})
+        await self.send_can_message('Set_Controller_Mode', {'Control_Mode': 0x01, 'Input_Mode': 0x01})
+        await self.send_can_message('Set_Input_Torque', {'Input_Torque': torque})
 
     async def go_for(self, rpm: float, revolutions: float, extra: Optional[Dict[str, Any]] = None, **kwargs):
         rps = rpm / MINUTE_TO_SECOND
 
-        self.send_can_message('Set_Axis_State', {'Axis_Requested_State': 0x08})
-        await self.wait_until_correct_state(AxisState.CLOSED_LOOP_CONTROL)
-
         if revolutions == 0.0:
-            self.send_can_message('Set_Controller_Mode', {'Control_Mode': 0x02, 'Input_Mode': 0x01})
-            self.send_can_message('Set_Input_Vel', {'Input_Vel': rps, 'Input_Torque_FF': 0})
+            await self.send_can_message('Set_Controller_Mode', {'Control_Mode': 0x02, 'Input_Mode': 0x01})
+            await self.send_can_message('Set_Axis_State', {'Axis_Requested_State': 0x08})
+            await self.wait_until_correct_state(AxisState.CLOSED_LOOP_CONTROL)
+            await self.send_can_message('Set_Input_Vel', {'Input_Vel': rps, 'Input_Torque_FF': 0})
 
         else:
-            self.send_can_message('Set_Controller_Mode', {'Control_Mode': 0x03, 'Input_Mode': 0x05})
-            self.send_can_message('Set_Limits', {'Velocity_Limit': 10.0, 'Current_Limit': 40.0})
+            await self.send_can_message('Set_Controller_Mode', {'Control_Mode': 0x03, 'Input_Mode': 0x05})
+            await self.send_can_message('Set_Limits', {'Velocity_Limit': 10.0, 'Current_Limit': 40.0})
+            await self.send_can_message('Set_Axis_State', {'Axis_Requested_State': 0x08})
+            await self.wait_until_correct_state(AxisState.CLOSED_LOOP_CONTROL)
 
             current_position = await self.get_position()
             if rpm > 0.0:
                 goal_position = current_position+revolutions+self.offset
-                self.send_can_message('Set_Input_Pos', {'Input_Pos': (goal_position), 'Vel_FF': 0, 'Torque_FF': 0})
+                await self.send_can_message('Set_Input_Pos', {'Input_Pos': (goal_position), 'Vel_FF': 0, 'Torque_FF': 0})
             else:
                 goal_position = current_position-revolutions+self.offset
-                self.send_can_message('Set_Input_Pos', {'Input_Pos': (goal_position), 'Vel_FF': 0, 'Torque_FF': 0})
+                await self.send_can_message('Set_Input_Pos', {'Input_Pos': (goal_position), 'Vel_FF': 0, 'Torque_FF': 0})
             await self.wait_and_set_to_idle(goal_position)
 
     async def go_to(self, rpm: float, revolutions: float, extra: Optional[Dict[str, Any]] = None, **kwargs):
@@ -165,7 +156,7 @@ class OdriveCAN(Motor, Reconfigurable):
         self.offset += position
 
     async def get_position(self, extra: Optional[Dict[str, Any]] = None, **kwargs) -> float:
-        self.send_can_message('Get_Encoder_Count', {'Shadow_Count': 0, 'Count_in_CPR': 4000})
+        await self.send_can_message('Get_Encoder_Count', {'Shadow_Count': 0, 'Count_in_CPR': 4000})
 
         for msg in bus:
             if msg.arbitration_id == ((self.nodeID << 5) | 0x004):
@@ -186,7 +177,7 @@ class OdriveCAN(Motor, Reconfigurable):
         return Motor.Properties(position_reporting=True)
     
     async def stop(self, extra: Optional[Dict[str, Any]] = None, **kwargs):
-        self.send_can_message('Set_Axis_State', {'Axis_Requested_State': 0x01})
+        await self.send_can_message('Set_Axis_State', {'Axis_Requested_State': 0x01})
 
     async def is_powered(self, extra: Optional[Dict[str, Any]] = None, **kwargs) -> Tuple[bool, float]:
         current_power = 0
@@ -194,7 +185,7 @@ class OdriveCAN(Motor, Reconfigurable):
             if msg.arbitration_id == ((self.nodeID << 5) | db.get_message_by_name('Heartbeat').frame_id):
                 current_state = db.decode_message('Heartbeat', msg.data)['Axis_State']
                 if (current_state != 0x0) & (current_state != 0x1):
-                    self.send_can_message('Get_Iq', {'Iq_Setpoint': 0, 'Iq_Measured': 0})
+                    await self.send_can_message('Get_Iq', {'Iq_Setpoint': 0, 'Iq_Measured': 0})
 
                     for msg1 in bus:
                         if msg1.arbitration_id == ((self.nodeID << 5) | 0x014):
@@ -221,7 +212,7 @@ class OdriveCAN(Motor, Reconfigurable):
         for msg in bus:
             if time.time() > timeout:
                 LOGGER.error("Unable to set to requested state, setting to idle")
-                self.send_can_message('Set_Axis_State', {'Axis_Requested_State': 0x01})
+                await self.send_can_message('Set_Axis_State', {'Axis_Requested_State': 0x01})
                 return
             current_state = db.decode_message('Heartbeat', msg.data)['Axis_State']
             if current_state == state:
@@ -240,16 +231,16 @@ class OdriveCAN(Motor, Reconfigurable):
                 if errors != 0x0:
                     await self.stop()
                     LOGGER.error("axis:", ODriveError(errors).name)
-                    self.clear_errors()
+                    await self.clear_errors()
     
     async def clear_errors(self):
-        self.send_can_message('Clear_Errors', {})
+        await self.send_can_message('Clear_Errors', {})
 
     async def set_node_id(self, new_nodeID):
-        self.send_can_message('Set_Axis_Node_ID', {'Axis_Node_ID': new_nodeID})
+        await self.send_can_message('Set_Axis_Node_ID', {'Axis_Node_ID': new_nodeID})
         self.nodeID = new_nodeID
 
-    def send_can_message(self, name, data):
+    async def send_can_message(self, name, data):
         msg = db.get_message_by_name(name)
         data = msg.encode(data)
         msg = can.Message(arbitration_id=msg.frame_id | self.nodeID << 5, is_extended_id=False, data=data)
@@ -257,3 +248,5 @@ class OdriveCAN(Motor, Reconfigurable):
             bus.send(msg)
         except can.CanError:
             LOGGER.error("Message (" + name + ") NOT sent! Please verify can0 is working first")
+            LOGGER.warn("You may need to run 'sudo ip link set can0 up type can bitrate <baud_rate>' in your terminal. " +
+                         "See the README Troubleshooting section for more details.")
