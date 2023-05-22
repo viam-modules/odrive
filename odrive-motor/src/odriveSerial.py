@@ -16,63 +16,66 @@ from odrive.enums import *
 from threading import Thread
 import asyncio
 import time
-import os
 from .utils import set_configs
 
 LOGGER = getLogger(__name__)
 MINUTE_TO_SECOND = 60
 
-class OdriveS1(Motor, Reconfigurable):
-    MODEL: ClassVar[Model] = Model(ModelFamily("viam-labs", "motor"), "odrive")
+class OdriveSerial(Motor, Reconfigurable):
+    MODEL: ClassVar[Model] = Model(ModelFamily("viam", "motor"), "odrive-serial")
     serial_number: str
-    max_rpm: float
     odrive_config_file: str
+    torque_constant: float
+    current_lim: float
+    offset: float
     odrv: Any
 
     @classmethod
     def new(cls, config: ComponentConfig, dependencies: Mapping[ResourceName, ResourceBase]) -> Self:
-        odriveS1 = cls(config.name)
-        odriveS1.serial_number = config.attributes.fields["serial_number"].string_value
-        odriveS1.max_rpm = config.attributes.fields["max_rpm"].number_value
-        odriveS1.odrive_config_file = config.attributes.fields["odrive_config_file"].string_value
-        odriveS1.offset = 0
+        odriveSerial = cls(config.name)
+        odriveSerial.serial_number = config.attributes.fields["serial_number"].string_value
+        odriveSerial.odrive_config_file = config.attributes.fields["odrive_config_file"].string_value
+        odriveSerial.offset = 0
 
-
-        odriveS1.odrv = odrive.find_any() if odriveS1.serial_number == "" else odrive.find_any(serial_number = odriveS1.serial_number)
-        odriveS1.odrv.clear_errors()
+        odriveSerial.odrv = odrive.find_any() if odriveSerial.serial_number == "" else odrive.find_any(serial_number = odriveSerial.serial_number)
+        odriveSerial.odrv.clear_errors()
         
-        if odriveS1.odrive_config_file != "":
-            set_configs(odriveS1.odrv, odriveS1.odrive_config_file)
+        if odriveSerial.odrive_config_file != "":
+            set_configs(odriveSerial.odrv, odriveSerial.odrive_config_file)
+        
+        odriveSerial.torque_constant = odriveSerial.odrv.axis0.config.motor.torque_constant
+        odriveSerial.current_lim = odriveSerial.odrv.axis0.config.general_lockin.current
 
         def periodically_surface_errors(odrv):
             while True:
                 asyncio.run(odrv.surface_errors())
                 time.sleep(1)
 
-        thread = Thread(target = periodically_surface_errors, args=[odriveS1])
+        thread = Thread(target = periodically_surface_errors, args=[odriveSerial])
         thread.setDaemon(True) 
         thread.start()
 
-        return odriveS1
+        return odriveSerial
 
     def reconfigure(self, config: ComponentConfig, dependencies: Mapping[ResourceName, ResourceBase]):
         self.serial_number = config.attributes.fields["serial_number"].string_value
-        self.max_rpm = config.attributes.fields["max_rpm"].number_value
         
         config_file = config.attributes.fields["odrive_config_file"].string_value
         if (config_file != self.odrive_config_file) and config_file != "":
             LOGGER.info("Updating odrive configurations.")
             self.odrive_config_file = config_file
             set_configs(self.odrv, self.odrive_config_file)
+            self.torque_constant = self.odrv.axis0.config.motor.torque_constant
+            self.current_lim = self.odrv.axis0.config.general_lockin.current
 
     async def set_power(self, power: float, extra: Optional[Dict[str, Any]] = None, **kwargs):
-        vel = power * (self.max_rpm / MINUTE_TO_SECOND)
+        torque = power * self.current_lim * self.torque_constant
         self.odrv.axis0.controller.config.input_mode = InputMode.PASSTHROUGH
-        self.odrv.axis0.controller.config.control_mode = ControlMode.VELOCITY_CONTROL
+        self.odrv.axis0.controller.config.control_mode = ControlMode.TORQUE_CONTROL
         self.odrv.axis0.requested_state = AxisState.CLOSED_LOOP_CONTROL
         await self.wait_until_correct_state(AxisState.CLOSED_LOOP_CONTROL)
         # the line below causes motion.
-        self.odrv.axis0.controller.input_vel = vel
+        self.odrv.axis0.controller.input_torque = torque
 
     async def go_for(self, rpm: float, revolutions: float, extra: Optional[Dict[str, Any]] = None, **kwargs):
         rps = rpm / MINUTE_TO_SECOND
@@ -112,7 +115,7 @@ class OdriveS1(Motor, Reconfigurable):
         self.odrv.axis0.requested_state = AxisState.IDLE
 
     async def is_powered(self, extra: Optional[Dict[str, Any]] = None, **kwargs) -> Tuple[bool, float]:
-        return (self.odrv.axis0.current_state != AxisState.IDLE and self.odrv.axis0.current_state != AxisState.UNDEFINED, self.odrv.axis0.pos_vel_mapper.vel/(self.max_rpm / MINUTE_TO_SECOND))
+        return (self.odrv.axis0.current_state != AxisState.IDLE and self.odrv.axis0.current_state != AxisState.UNDEFINED, self.odrv.axis0.motor.foc.Iq_setpoint/self.current_lim)
 
     async def is_moving(self):
         return self.odrv.axis0.current_state != AxisState.IDLE

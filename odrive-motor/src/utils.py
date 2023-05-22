@@ -32,3 +32,22 @@ def set_configs(odrv, config_path):
 
     for k,v in flatten(configs).items():
         rsetattr(odrv, k, v)
+
+def find_baudrate(config_path):
+    with open(config_path) as json_file:
+        configs = json.load(json_file)
+
+    if configs["can"]["config"]["baud_rate"]:
+        return configs["can"]["config"]["baud_rate"]
+    else:
+        return 250000
+    
+def find_axis_configs(config_path, config_params):
+    with open(config_path) as json_file:
+        configs = json.load(json_file)
+    
+    value = configs["axis0"]["config"]
+    for i in range(len(config_params)):
+        value = value[config_params[i]]
+
+    return value
