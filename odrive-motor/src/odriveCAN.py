@@ -129,7 +129,7 @@ class OdriveCAN(Motor, Reconfigurable):
 
         else:
             self.send_can_message('Set_Controller_Mode', {'Control_Mode': 0x03, 'Input_Mode': 0x05})
-            self.send_can_message('Set_Traj_Vel_Limit', {'Traj_Vel_Limit': rps})
+            self.send_can_message('Set_Traj_Vel_Limit', {'Traj_Vel_Limit': abs(rps)})
             self.send_can_message('Set_Axis_State', {'Axis_Requested_State': 0x08})
             await self.wait_until_correct_state(AxisState.CLOSED_LOOP_CONTROL)
 
