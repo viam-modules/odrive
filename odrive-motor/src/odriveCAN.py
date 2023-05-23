@@ -22,7 +22,6 @@ import can
 import cantools
 import time
 import asyncio
-from subprocess import Popen
 
 db = cantools.database.load_file("odrive-cansimple.dbc")
 bus = can.Bus("can0", bustype="socketcan")
@@ -114,34 +113,35 @@ class OdriveCAN(Motor, Reconfigurable):
 
     async def set_power(self, power: float, extra: Optional[Dict[str, Any]] = None, **kwargs):
         torque = power*self.current_limit*self.torque_constant
-        await self.send_can_message('Set_Axis_State', {'Axis_Requested_State': 0x08})
+        self.send_can_message('Set_Axis_State', {'Axis_Requested_State': 0x08})
         await self.wait_until_correct_state(AxisState.CLOSED_LOOP_CONTROL)
-        await self.send_can_message('Set_Controller_Mode', {'Control_Mode': 0x01, 'Input_Mode': 0x01})
-        await self.send_can_message('Set_Input_Torque', {'Input_Torque': torque})
+        self.send_can_message('Set_Controller_Mode', {'Control_Mode': 0x01, 'Input_Mode': 0x01})
+        self.send_can_message('Set_Input_Torque', {'Input_Torque': torque})
 
     async def go_for(self, rpm: float, revolutions: float, extra: Optional[Dict[str, Any]] = None, **kwargs):
         rps = rpm / MINUTE_TO_SECOND
 
         if revolutions == 0.0:
-            await self.send_can_message('Set_Controller_Mode', {'Control_Mode': 0x02, 'Input_Mode': 0x01})
-            await self.send_can_message('Set_Axis_State', {'Axis_Requested_State': 0x08})
+            self.send_can_message('Set_Controller_Mode', {'Control_Mode': 0x02, 'Input_Mode': 0x01})
+            self.send_can_message('Set_Axis_State', {'Axis_Requested_State': 0x08})
             await self.wait_until_correct_state(AxisState.CLOSED_LOOP_CONTROL)
-            await self.send_can_message('Set_Input_Vel', {'Input_Vel': rps, 'Input_Torque_FF': 0})
+            self.send_can_message('Set_Input_Vel', {'Input_Vel': rps, 'Input_Torque_FF': 0})
 
         else:
-            await self.send_can_message('Set_Controller_Mode', {'Control_Mode': 0x03, 'Input_Mode': 0x05})
-            await self.send_can_message('Set_Limits', {'Velocity_Limit': 10.0, 'Current_Limit': 40.0})
-            await self.send_can_message('Set_Axis_State', {'Axis_Requested_State': 0x08})
+            self.send_can_message('Set_Controller_Mode', {'Control_Mode': 0x03, 'Input_Mode': 0x05})
+            self.send_can_message('Set_Traj_Vel_Limit', {'Traj_Vel_Limit': rps})
+            self.send_can_message('Set_Axis_State', {'Axis_Requested_State': 0x08})
             await self.wait_until_correct_state(AxisState.CLOSED_LOOP_CONTROL)
 
             current_position = await self.get_position()
             if rpm > 0.0:
                 goal_position = current_position+revolutions+self.offset
-                await self.send_can_message('Set_Input_Pos', {'Input_Pos': (goal_position), 'Vel_FF': 0, 'Torque_FF': 0})
+                self.send_can_message('Set_Input_Pos', {'Input_Pos': (goal_position), 'Vel_FF': 0, 'Torque_FF': 0})
             else:
                 goal_position = current_position-revolutions+self.offset
-                await self.send_can_message('Set_Input_Pos', {'Input_Pos': (goal_position), 'Vel_FF': 0, 'Torque_FF': 0})
-            await self.wait_and_set_to_idle(goal_position)
+                self.send_can_message('Set_Input_Pos', {'Input_Pos': (goal_position), 'Vel_FF': 0, 'Torque_FF': 0})
+            
+            self.wait_and_set_to_idle(goal_position)
 
     async def go_to(self, rpm: float, revolutions: float, extra: Optional[Dict[str, Any]] = None, **kwargs):
         current_position = await self.get_position()
@@ -156,16 +156,7 @@ class OdriveCAN(Motor, Reconfigurable):
         self.offset += position
 
     async def get_position(self, extra: Optional[Dict[str, Any]] = None, **kwargs) -> float:
-        await self.send_can_message('Get_Encoder_Count', {'Shadow_Count': 0, 'Count_in_CPR': 4000})
-
         for msg in bus:
-            if msg.arbitration_id == ((self.nodeID << 5) | 0x004):
-                encoderError = db.decode_message('Get_Encoder_Error', msg.data)
-                if encoderError != 0x00:
-                    LOGGER.error("Encoder error!  Error code: "+str(hex(encoderError)))
-                else:
-                    break
-
             if msg.arbitration_id == ((self.nodeID << 5) | 0x009):
                 encoderCount = db.decode_message('Get_Encoder_Estimates', msg.data)
                 return encoderCount['Pos_Estimate'] - self.offset
@@ -177,7 +168,7 @@ class OdriveCAN(Motor, Reconfigurable):
         return Motor.Properties(position_reporting=True)
     
     async def stop(self, extra: Optional[Dict[str, Any]] = None, **kwargs):
-        await self.send_can_message('Set_Axis_State', {'Axis_Requested_State': 0x01})
+        self.send_can_message('Set_Axis_State', {'Axis_Requested_State': 0x01})
 
     async def is_powered(self, extra: Optional[Dict[str, Any]] = None, **kwargs) -> Tuple[bool, float]:
         current_power = 0
@@ -185,7 +176,7 @@ class OdriveCAN(Motor, Reconfigurable):
             if msg.arbitration_id == ((self.nodeID << 5) | db.get_message_by_name('Heartbeat').frame_id):
                 current_state = db.decode_message('Heartbeat', msg.data)['Axis_State']
                 if (current_state != 0x0) & (current_state != 0x1):
-                    await self.send_can_message('Get_Iq', {'Iq_Setpoint': 0, 'Iq_Measured': 0})
+                    self.send_can_message('Get_Iq', {'Iq_Setpoint': 0, 'Iq_Measured': 0})
 
                     for msg1 in bus:
                         if msg1.arbitration_id == ((self.nodeID << 5) | 0x014):
@@ -197,9 +188,9 @@ class OdriveCAN(Motor, Reconfigurable):
 
     async def is_moving(self) -> bool:
         for msg in bus:
-            if msg.arbitration_id == ((self.nodeID << 5) | db.get_message_by_name('Get_Encoder_Estimates').frame_id):
-                current_vel = db.decode_message('Get_Encoder_Estimates', msg.data)['Vel_Estimate']
-                if current_vel > 0:
+            if msg.arbitration_id == ((self.nodeID << 5) | 0x009):
+                estimates = db.decode_message('Get_Encoder_Estimates', msg.data)
+                if abs(estimates['Vel_Estimate']) > 0.1:
                     return True
                 else:
                     return False
@@ -212,11 +203,12 @@ class OdriveCAN(Motor, Reconfigurable):
         for msg in bus:
             if time.time() > timeout:
                 LOGGER.error("Unable to set to requested state, setting to idle")
-                await self.send_can_message('Set_Axis_State', {'Axis_Requested_State': 0x01})
+                self.send_can_message('Set_Axis_State', {'Axis_Requested_State': 0x01})
                 return
-            current_state = db.decode_message('Heartbeat', msg.data)['Axis_State']
-            if current_state == state:
-                return
+            if msg.arbitration_id == ((self.nodeID << 5) | db.get_message_by_name('Heartbeat').frame_id):
+                current_state = db.decode_message('Heartbeat', msg.data)['Axis_State']
+                if current_state == state:
+                    return
    
     async def wait_and_set_to_idle(self, goal):
         while True:
@@ -234,13 +226,13 @@ class OdriveCAN(Motor, Reconfigurable):
                     await self.clear_errors()
     
     async def clear_errors(self):
-        await self.send_can_message('Clear_Errors', {})
+        self.send_can_message('Clear_Errors', {})
 
     async def set_node_id(self, new_nodeID):
-        await self.send_can_message('Set_Axis_Node_ID', {'Axis_Node_ID': new_nodeID})
+        self.send_can_message('Set_Axis_Node_ID', {'Axis_Node_ID': new_nodeID})
         self.nodeID = new_nodeID
 
-    async def send_can_message(self, name, data):
+    def send_can_message(self, name, data):
         msg = db.get_message_by_name(name)
         data = msg.encode(data)
         msg = can.Message(arbitration_id=msg.frame_id | self.nodeID << 5, is_extended_id=False, data=data)
