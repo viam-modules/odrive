@@ -63,6 +63,7 @@ class OdriveCAN(Motor, Reconfigurable):
                 odriveCAN.current_limit = find_axis_configs(odriveCAN.odrive_config_file, ["general_lockin", "current"])
         except TimeoutError:
             LOGGER.error("Could not set odrive configurations because no serial odrive connection was found.")
+            pass
 
         if config.attributes.fields["canbus_baud_rate"].string_value != "":
             baud_rate = config.attributes.fields["canbus_baud_rate"].string_value
@@ -83,18 +84,18 @@ class OdriveCAN(Motor, Reconfigurable):
                 asyncio.run(odriveCAN.surface_errors())
                 time.sleep(1)
 
-        thread = Thread(target = periodically_surface_errors, args=[odriveCAN])
-        thread.setDaemon(True) 
-        thread.start()
+        error_thread = Thread(target = periodically_surface_errors, args=[odriveCAN])
+        error_thread.setDaemon(True) 
+        error_thread.start()
 
         def periodically_check_goal(odriveCAN):
             while True:
                 asyncio.run(odriveCAN.check_goal())
-                time.sleep(1)
+                time.sleep(0.5)
 
-        thread1 = Thread(target = periodically_check_goal, args=[odriveCAN])
-        thread1.setDaemon(True) 
-        thread1.start()
+        goal_thread = Thread(target = periodically_check_goal, args=[odriveCAN])
+        goal_thread.setDaemon(True) 
+        goal_thread.start()
 
         return odriveCAN
     
@@ -170,7 +171,7 @@ class OdriveCAN(Motor, Reconfigurable):
 
     async def get_position(self, extra: Optional[Dict[str, Any]] = None, **kwargs) -> float:
         for msg in bus:
-            if msg.arbitration_id == ((self.nodeID << 5) | 0x009):
+            if msg.arbitration_id == ((self.nodeID << 5) | db.get_message_by_name('Get_Encoder_Estimates').frame_id):
                 encoderCount = db.decode_message('Get_Encoder_Estimates', msg.data)
                 return encoderCount['Pos_Estimate'] - self.offset
 
@@ -192,7 +193,7 @@ class OdriveCAN(Motor, Reconfigurable):
                     await self.send_can_message('Get_Iq', {'Iq_Setpoint': 0, 'Iq_Measured': 0})
 
                     for msg1 in bus:
-                        if msg1.arbitration_id == ((self.nodeID << 5) | 0x014):
+                        if msg1.arbitration_id == ((self.nodeID << 5) | db.get_message_by_name('Get_Iq').frame_id):
                             current = db.decode_message('Get_Iq', msg1.data)['Iq_Setpoint']
                             current_power = current/self.current_limit
                             return [True, current_power]
@@ -201,9 +202,9 @@ class OdriveCAN(Motor, Reconfigurable):
 
     async def is_moving(self) -> bool:
         for msg in bus:
-            if msg.arbitration_id == ((self.nodeID << 5) | 0x009):
+            if msg.arbitration_id == ((self.nodeID << 5) | db.get_message_by_name('Get_Encoder_Estimates').frame_id):
                 estimates = db.decode_message('Get_Encoder_Estimates', msg.data)
-                if abs(estimates['Vel_Estimate']) > 0.1:
+                if abs(estimates['Vel_Estimate']) > 0.0:
                     return True
                 else:
                     return False
