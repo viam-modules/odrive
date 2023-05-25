@@ -20,8 +20,6 @@ from .utils import set_configs, find_baudrate, rsetattr, find_axis_configs
 
 import can
 import cantools
-import time
-import asyncio
 
 db = cantools.database.load_file("odrive-cansimple.dbc")
 bus = can.Bus("can0", bustype="socketcan")
@@ -39,6 +37,7 @@ class OdriveCAN(Motor, Reconfigurable):
     torque_constant: float
     current_limit: float
     goal: dict()
+    serial_number: str
 
     @classmethod
     def new(cls, config: ComponentConfig, dependencies: Mapping[ResourceName, ResourceBase]) -> Self:
@@ -47,23 +46,26 @@ class OdriveCAN(Motor, Reconfigurable):
         if ("canbus_node_id" not in config.attributes.fields) or (config.attributes.fields["canbus_node_id"].number_value < 0):
             LOGGER.error("non negative 'canbus_node_id' is a required config attribute")
         odriveCAN.nodeID = int(config.attributes.fields["canbus_node_id"].number_value)
+        odriveCAN.serial_number = config.attributes.fields["serial_number"].string_value
         odriveCAN.torque_constant = 1
         odriveCAN.current_limit = 10
         odriveCAN.offset = 0.0
         odriveCAN.goal = {"position": 0.0, "active": False}
 
-        bus.set_filters([{"can_id": odriveCAN.nodeID, "can_mask": 0xFF << 5, "extended": False}])
-
-        try:
-            odriveCAN.odrv = odrive.find_any()
-            if odriveCAN.odrive_config_file != "":
-                set_configs(odriveCAN.odrv, odriveCAN.odrive_config_file)
-                rsetattr(odriveCAN.odrv, "axis0.config.can.node_id", odriveCAN.nodeID)
-                odriveCAN.torque_constant = find_axis_configs(odriveCAN.odrive_config_file, ["motor", "torque_constant"])
-                odriveCAN.current_limit = find_axis_configs(odriveCAN.odrive_config_file, ["general_lockin", "current"])
-        except TimeoutError:
-            LOGGER.error("Could not set odrive configurations because no serial odrive connection was found.")
-            pass
+        if odriveCAN.odrive_config_file != "":
+            if odriveCAN.serial_number == "":
+                LOGGER.warning("If you are using multiple Odrive controllers, make sure to add their respective serial_number to each component attributes")
+            try:
+                odriveCAN.odrv = odrive.find_any() if odriveCAN.serial_number == "" else odrive.find_any(serial_number = odriveCAN.serial_number)
+                odriveCAN.odrv.clear_errors()
+                if odriveCAN.odrive_config_file != "":
+                    set_configs(odriveCAN.odrv, odriveCAN.odrive_config_file)
+                    rsetattr(odriveCAN.odrv, "axis0.config.can.node_id", odriveCAN.nodeID)
+                    odriveCAN.torque_constant = find_axis_configs(odriveCAN.odrive_config_file, ["motor", "torque_constant"])
+                    odriveCAN.current_limit = find_axis_configs(odriveCAN.odrive_config_file, ["general_lockin", "current"])
+            except:
+                LOGGER.error("Could not set odrive configurations because no serial odrive connection was found.")
+                pass
 
         if config.attributes.fields["canbus_baud_rate"].string_value != "":
             baud_rate = config.attributes.fields["canbus_baud_rate"].string_value
@@ -103,7 +105,7 @@ class OdriveCAN(Motor, Reconfigurable):
     def validate(cls, config: ComponentConfig):
         return
 
-    async def reconfigure(self, config: ComponentConfig, dependencies: Mapping[ResourceName, ResourceBase]):
+    def reconfigure(self, config: ComponentConfig, dependencies: Mapping[ResourceName, ResourceBase]):
         if config.attributes.fields["canbus_baud_rate"].string_value != "":
             baud_rate = config.attributes.fields["canbus_baud_rate"].string_value
             baud_rate = baud_rate.replace("k", "000")
@@ -190,8 +192,6 @@ class OdriveCAN(Motor, Reconfigurable):
             if msg.arbitration_id == ((self.nodeID << 5) | db.get_message_by_name('Heartbeat').frame_id):
                 current_state = db.decode_message('Heartbeat', msg.data)['Axis_State']
                 if (current_state != 0x0) & (current_state != 0x1):
-                    await self.send_can_message('Get_Iq', {'Iq_Setpoint': 0, 'Iq_Measured': 0})
-
                     for msg1 in bus:
                         if msg1.arbitration_id == ((self.nodeID << 5) | db.get_message_by_name('Get_Iq').frame_id):
                             current = db.decode_message('Get_Iq', msg1.data)['Iq_Setpoint']
@@ -230,7 +230,7 @@ class OdriveCAN(Motor, Reconfigurable):
                 errors = db.decode_message('Heartbeat', msg.data)['Axis_Error']
                 if errors != 0x0:
                     await self.stop()
-                    LOGGER.error("axis:", ODriveError(errors).name)
+                    LOGGER.error("axis:", ODriveError(errors))
                     await self.clear_errors()
 
     async def check_goal(self):
