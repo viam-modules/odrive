@@ -53,6 +53,8 @@ class OdriveCAN(Motor, Reconfigurable):
         odriveCAN.goal = {"position": 0.0, "active": False}
 
         if odriveCAN.odrive_config_file != "":
+            if odriveCAN.serial_number == "":
+                LOGGER.warning("If you are using multiple Odrive controllers, make sure to add their respective serial_number to each component attributes")
             try:
                 odriveCAN.odrv = odrive.find_any() if odriveCAN.serial_number == "" else odrive.find_any(serial_number = odriveCAN.serial_number)
                 odriveCAN.odrv.clear_errors()

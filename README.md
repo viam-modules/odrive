@@ -27,6 +27,7 @@ The following optional config parameters are available for the Odrive:
     * Provide the path to the config file as a string for this parameter.
     * See sample-configs/config.json for a sample odrive config file.
     * (For `"canbus"` connection) If you add an `odrive_config_file`, you will have to leave the Odrive plugged in to the USB port in addition to wiring the CANH and CANL pins.
+    * An alternative to adding an `odrive_config_file` is running the command `odrivetool restore-config /path/to/config.json` in your terminal.
 2. `serial_number`: serial number of the odrive (string).
     * This is not necessary if you only have one odrive connected. See *Troubleshooting* section *Hanging* for a note on multiple serial numbers. 
     * (For `"canbus"` connection) This is not necessary unless you have multiple Odrives connected AND are providing an `odrive_config_file` for any of them. The `"canbus"` implementation allows you to connect multiple Odrives without providing a `serial_number` as long as you don't have any `odrive_config_file`.
@@ -51,7 +52,6 @@ The following optional config parameters are available for the Odrive:
       "attributes": {
         "serial_number": "NUM000",
         "odrive_config_file": "local/path/to/motor/config.json",
-        "connection_type": "serial"
       },
       "depends_on": [],
       "type": "motor",
@@ -76,11 +76,48 @@ The following optional config parameters are available for the Odrive:
       "namespace": "rdk",
       "attributes": {
         "canbus_node_id": 0,
-        "connection_type": "canbus"
       },
       "depends_on": [],
       "type": "motor",
       "name": "odrive-motor"
+    }
+  ]
+}
+```
+
+## Sample Viam CAN Config with 2 Odrives and odrive_config_files
+```json
+{
+  "modules": [
+    {
+      "name": "odrive",
+      "executable_path": "path/to/run.sh"
+    }
+  ],
+  "components": [
+    {
+      "model": "viam:motor:odrive-canbus",
+      "namespace": "rdk",
+      "attributes": {
+        "canbus_node_id": 0,
+        "odrive_config_file": "/path/to/first/config.json",
+        "serial_number": "NUM0001"
+      },
+      "depends_on": [],
+      "type": "motor",
+      "name": "odrive-motor"
+    },
+    {
+      "model": "viam:motor:odrive-canbus",
+      "namespace": "rdk",
+      "attributes": {
+        "canbus_node_id": 2,
+        "odrive_config_file": "/path/to/second/config.json",
+        "serial_number": "NUM0002"
+      },
+      "depends_on": [],
+      "type": "motor",
+      "name": "odrive-motor-2"
     }
   ]
 }

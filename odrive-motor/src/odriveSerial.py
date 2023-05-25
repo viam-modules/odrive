@@ -37,7 +37,11 @@ class OdriveSerial(Motor, Reconfigurable):
         odriveSerial.odrive_config_file = config.attributes.fields["odrive_config_file"].string_value
         odriveSerial.offset = 0
 
-        odriveSerial.odrv = odrive.find_any() if odriveSerial.serial_number == "" else odrive.find_any(serial_number = odriveSerial.serial_number)
+        if odriveSerial.serial_number == "":
+            LOGGER.warning("If you are using multiple Odrive controllers, make sure to add their respective serial_number to each component attributes")
+            odriveSerial.odrv = odrive.find_any()
+        else:
+            odriveSerial.serial_number = odrive.find_any(serial_number = odriveSerial.serial_number)
         odriveSerial.odrv.clear_errors()
         
         if odriveSerial.odrive_config_file != "":
