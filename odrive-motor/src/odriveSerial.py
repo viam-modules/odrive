@@ -57,6 +57,10 @@ class OdriveSerial(Motor, Reconfigurable):
 
         return odriveSerial
 
+    @classmethod
+    def validate(cls, config: ComponentConfig):
+        return
+
     def reconfigure(self, config: ComponentConfig, dependencies: Mapping[ResourceName, ResourceBase]):
         self.serial_number = config.attributes.fields["serial_number"].string_value
         
