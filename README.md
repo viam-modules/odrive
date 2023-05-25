@@ -1,7 +1,7 @@
 # Odrive S1 Modular Component
 
 ## Getting Started
-* See the [odrive documentation](https://docs.odriverobotics.com/v/latest/getting-started.html) on how to configure and tune your motor properly. Once your Odrive is configured once, the configuration will stay the same across reboots.
+* See the [odrive documentation](https://docs.odriverobotics.com/v/latest/getting-started.html) on how to configure and tune your motor properly. The configuration remains on the same ODrive motor controller across reboots, and only changes when you go through the configuration of the ODrive again.
 * See the [odrive CAN documentation](https://docs.odriverobotics.com/v/latest/can-guide.html) for detailed information on how to set up CAN on your odrive. Make sure that you:
     * enable SPI communication on your Raspberry Pi
     * install `odrive`, `can-utils`, `python-can`, and `cantools`
