@@ -136,3 +136,8 @@ The following optional config parameters are available for the Odrive:
 * If you get an error of `"Device or resource busy"`, try setting CAN down and back up with the command `sudo ip link set can0 down` followed by `sudo ip link set can0 up type can bitrate <baud_rate>`
     * You will have to do this any time you want to change the baud rate
 * If you get an error of `"Network is down"`, try setting CAN up with the command `sudo ip link set can0 up type can bitrate <baud_rate>`
+
+## License
+Copyright 2021-2023 Viam Inc.
+
+Apache 2.0 - See [LICENSE](https://github.com/viamrobotics/odrive/blob/main/LICENSE) file
