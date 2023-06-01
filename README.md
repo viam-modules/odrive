@@ -6,9 +6,8 @@
     * enable SPI communication on your Raspberry Pi
     * install `odrive`, `python-can`, and `cantools`
 * Update the sample config as following:
-    * Update the `connection_type` (string) you will be using to communicate with your motor
-        * if using a `"canbus"` connection, update the `canbus_node_id` (int) to the node ID of whichever CAN node you'd like to use
     * Update the `executable_path` (string) to the location of `run.sh` on your machine
+    * If using a `"canbus"` connection, update the `canbus_node_id` (int) to the node ID of whichever CAN node you'd like to use
 * Provide the config on app.viam.com
 * (For `"canbus"` models) You must run `sudo ip link set can0 up type can bitrate <baud_rate>` in your terminal in order to receive CAN messages. See *CAN Link Issues* in the *Troubleshooting* section for more details.
 
