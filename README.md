@@ -4,7 +4,7 @@
 * See the [odrive documentation](https://docs.odriverobotics.com/v/latest/getting-started.html) on how to configure and tune your motor properly. The configuration remains on the same ODrive motor controller across reboots, and only changes when you go through the configuration of the ODrive again.
 * See the [odrive CAN documentation](https://docs.odriverobotics.com/v/latest/can-guide.html) for detailed information on how to set up CAN on your odrive. Make sure that you:
     * enable SPI communication on your Raspberry Pi
-    * install `odrive`, `python-can`, and `cantools`
+    * install `odrive`, `python-can`, `cantools`, and [`viam-sdk`](https://python.viam.dev)
 * Update the sample config as following:
     * Update the `executable_path` (string) to the location of `run.sh` on your machine
     * If using a `"canbus"` connection, update the `canbus_node_id` (int) to the node ID of whichever CAN node you'd like to use
