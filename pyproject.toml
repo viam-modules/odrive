@@ -5,7 +5,7 @@ description = "Viam module for Odrive motor controllers"
 authors = ["martha-johnston <martha.johnston@viam.com>"]
 license = "Apache-2.0"
 readme = "README.md"
-packages = [{include = "viam_odrive"}]
+packages = [{include = "odrive-motor"}]
 
 [tool.poetry.dependencies]
 python = "^3.9"
