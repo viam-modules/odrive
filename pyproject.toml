@@ -1,0 +1,23 @@
+[tool.poetry]
+name = "viam-odrive"
+version = "0.1.0"
+description = "Viam module for Odrive motor controllers"
+authors = ["martha-johnston <martha.johnston@viam.com>"]
+license = "Apache-2.0"
+readme = "README.md"
+packages = [{include = "viam_odrive"}]
+
+[tool.poetry.dependencies]
+python = "^3.9"
+odrive = "^0.6.5.post2"
+python-can = "^4.2.1"
+cantools = "^38.0.2"
+
+[tool.poetry.group.dev.dependencies]
+odrive = "^0.6.5.post2"
+python-can = "^4.2.1"
+cantools = "^38.0.2"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
