@@ -16,7 +16,7 @@ Make sure that you have:
 * `"serial"`: plug the [USB Isolator for ODrive](https://odriverobotics.com/shop/usb-c-to-usb-a-cable-and-usb-isolator) into a USB port on your board, and then plug a USB-C to USB-A cable from the isolator to the Odrive.
 * `"canbus"`: wire the CANH and CANL pins from your board to your ODrive. Refer to the [ODrive pinout diagram](https://docs.odriverobotics.com/v/latest/pinout.html). 
     * You will have had to wire a `serial` connection initially when setting up the ODrive (see *Getting Started*). After setting up the ODrive, you can either leave the serial connection plugged in, or remove it and just leave the CANH and CANL pins wired.
-    * You must run `sudo ip link set can0 up type can bitrate <baud_rate>` in your terminal to receive CAN messages. See *CAN Link Issues* in the [**Troubleshooting: CAN Link Issues**](#can-link-issues) section for more details.
+    * You must run `sudo ip link set can0 up type can bitrate <baud_rate>` in your terminal to receive CAN messages. See *Troubleshooting: CAN Link Issues* for more details.
 
 ## Configuration
 
@@ -88,7 +88,7 @@ The following optional configuration attributes are available for the ODrive:
     * See sample-configs/config.json for a sample ODrive config file.
 
 2. `serial_number`: serial number of the ODrive (string).
-    * This is not necessary if you only have one ODrive connected. See [**Troubleshooting: Hanging**](#hanging) for a note on multiple serial numbers. 
+    * This is not necessary if you only have one ODrive connected. See *Troubleshooting: Hanging* for a note on multiple serial numbers. 
     * (For `"canbus"` connection) This is not necessary unless you have multiple ODrives connected AND are providing an `odrive_config_file` for any of them. The `"canbus"` implementation allows you to connect multiple ODrives without providing a `serial_number` as long as you don't have any `odrive_config_file`.
 
 3. `canbus_baud_rate`: baud rate of the ODrive CAN protocol (string).
