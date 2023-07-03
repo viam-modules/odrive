@@ -7,7 +7,7 @@ Prepare your ODrive and configure the module and resource to integrate an `odriv
 ## Getting Started
 * See the [ODrive documentation](https://docs.odriverobotics.com/v/latest/getting-started.html) to configure and tune your motor properly. 
 This configuration remains on the same ODrive motor controller across reboots, and only changes when you go through the configuration of the ODrive again.
-* See the [ODrive CAN documentation](https://docs.odriverobotics.com/v/latest/can-guide.html) for detailed information on how to set up CAN on your odrive. 
+* See the [ODrive CAN documentation](https://docs.odriverobotics.com/v/latest/can-guide.html) for detailed information on how to set up CAN on your ODrive. 
 Make sure that you have:
     * enabled SPI communication on your SBC
     * installed `odrivetool`, `python-can`, `cantools`, and a [`viam-sdk`](https://python.viam.dev)
