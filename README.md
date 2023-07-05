@@ -9,12 +9,12 @@ Prepare your ODrive and configure the module and resource to integrate an `odriv
 This configuration remains on the same ODrive motor controller across reboots, and only changes when you go through the configuration of the ODrive again.
 * See the [ODrive CAN documentation](https://docs.odriverobotics.com/v/latest/can-guide.html) for detailed information on how to set up CAN on your ODrive. 
 Make sure that you have:
-    * enabled SPI communication on your SBC
-    * installed `odrivetool`, `python-can`, `cantools`, and a [`viam-sdk`](https://python.viam.dev)
+    * enabled SPI communication on your Raspberry Pi to use several common CANHats, other single board computers may have other ways of setting up CANBus communications.
+    * installed `odrivetool`, `python-can`, `cantools`, and [Python `viam-sdk`](https://python.viam.dev)
 
 ### Connect your ODrive to your single-board computer
-* `"serial"`: plug the [USB Isolator for ODrive](https://odriverobotics.com/shop/usb-c-to-usb-a-cable-and-usb-isolator) into a USB port on your board, and then plug a USB-C to USB-A cable from the isolator to the Odrive.
-* `"canbus"`: wire the CANH and CANL pins from your board to your ODrive. Refer to the [ODrive pinout diagram](https://docs.odriverobotics.com/v/latest/pinout.html). 
+* `"odrive-serial"`: plug the [USB Isolator for ODrive](https://odriverobotics.com/shop/usb-c-to-usb-a-cable-and-usb-isolator) into a USB port on your board, and then plug a USB-C to USB-A cable from the isolator to the Odrive.
+* `"odrive-canbus"`: wire the CANH and CANL pins from your board to your ODrive. Refer to the [ODrive pinout diagram](https://docs.odriverobotics.com/v/latest/pinout.html). 
     * You will have had to wire a `serial` connection initially when setting up the ODrive (see *Getting Started*). After setting up the ODrive, you can either leave the serial connection plugged in, or remove it and just leave the CANH and CANL pins wired.
     * You must run `sudo ip link set can0 up type can bitrate <baud_rate>` in your terminal to receive CAN messages. See *Troubleshooting: CAN Link Issues* for more details.
 
