@@ -25,7 +25,7 @@ Make sure that you have:
 To add an `odrive-canbus` or `odrive-serial` motor, update the JSON from the template with the following:
 
     * Update the `executable_path` (string) to the location of `run.sh` on your machine
-    * (For `"canbus"` connection) update the `canbus_node_id` (int) to the node ID of whichever CAN node you'd like to use
+    * (For the `odrive-canbus`  model) update the `canbus_node_id` (int) to the node ID of whichever CAN node you'd like to use
     
 Copy and paste this JSON configuration for your robot on [the Viam app](https://app.viam.com): 
 
