@@ -9,7 +9,7 @@ jobs:
     steps:
     - uses: actions/checkout@v3
     - name: build
-      run: tar -czf module.tar.gz --exclude=module.tar.gz .
+      run: touch module.tar.gz && tar -czf module.tar.gz --exclude=module.tar.gz .
     - uses: viamrobotics/upload-module@main
       with:
         module-path: module.tar.gz
