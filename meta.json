@@ -6,11 +6,11 @@
   "models": [
     {
       "api": "rdk:component:motor",
-      "model": "viam:motor:odrive-serial"
+      "model": "viam:odrive:serial"
     },
     {
       "api": "rdk:component:motor",
-      "model": "viam:motor:odrive-canbus"
+      "model": "viam:odrive:canbus"
     }
   ],
   "entrypoint": "run.sh"

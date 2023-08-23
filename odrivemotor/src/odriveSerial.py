@@ -22,7 +22,7 @@ LOGGER = getLogger(__name__)
 MINUTE_TO_SECOND = 60
 
 class OdriveSerial(Motor, Reconfigurable):
-    MODEL: ClassVar[Model] = Model(ModelFamily("viam", "motor"), "odrive-serial")
+    MODEL: ClassVar[Model] = Model(ModelFamily("viam", "odrive"), "serial")
     serial_number: str
     odrive_config_file: str
     torque_constant: float

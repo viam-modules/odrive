@@ -21,14 +21,13 @@ from .utils import set_configs, find_baudrate, rsetattr, find_axis_configs
 import can
 import cantools
 
-db = cantools.database.load_file("odrive-cansimple.dbc")
 bus = can.Bus("can0", bustype="socketcan")
 
 LOGGER = getLogger(__name__)
 MINUTE_TO_SECOND = 60.0
 
 class OdriveCAN(Motor, Reconfigurable):
-    MODEL: ClassVar[Model] = Model(ModelFamily("viam", "motor"), "odrive-canbus")
+    MODEL: ClassVar[Model] = Model(ModelFamily("viam", "odrive"), "canbus")
     odrive_config_file: str
     offset: float
     baud_rate: str
@@ -38,6 +37,7 @@ class OdriveCAN(Motor, Reconfigurable):
     current_limit: float
     goal: dict()
     serial_number: str
+    db: Any
 
     @classmethod
     def new(cls, config: ComponentConfig, dependencies: Mapping[ResourceName, ResourceBase]) -> Self:
@@ -51,6 +51,7 @@ class OdriveCAN(Motor, Reconfigurable):
         odriveCAN.current_limit = 10
         odriveCAN.offset = 0.0
         odriveCAN.goal = {"position": 0.0, "active": False}
+        odriveCAN.db = cantools.database.load_file("odrive-cansimple.dbc")
 
         if odriveCAN.odrive_config_file != "":
             if odriveCAN.serial_number == "":
@@ -173,8 +174,8 @@ class OdriveCAN(Motor, Reconfigurable):
 
     async def get_position(self, extra: Optional[Dict[str, Any]] = None, **kwargs) -> float:
         for msg in bus:
-            if msg.arbitration_id == ((self.nodeID << 5) | db.get_message_by_name('Get_Encoder_Estimates').frame_id):
-                encoderCount = db.decode_message('Get_Encoder_Estimates', msg.data)
+            if msg.arbitration_id == ((self.nodeID << 5) | self.db.get_message_by_name('Get_Encoder_Estimates').frame_id):
+                encoderCount = self.db.decode_message('Get_Encoder_Estimates', msg.data)
                 return encoderCount['Pos_Estimate'] - self.offset
 
         LOGGER.error("Position estimates not received, check that can0 is configured correctly")
@@ -189,12 +190,12 @@ class OdriveCAN(Motor, Reconfigurable):
     async def is_powered(self, extra: Optional[Dict[str, Any]] = None, **kwargs) -> Tuple[bool, float]:
         current_power = 0
         for msg in bus:
-            if msg.arbitration_id == ((self.nodeID << 5) | db.get_message_by_name('Heartbeat').frame_id):
-                current_state = db.decode_message('Heartbeat', msg.data)['Axis_State']
+            if msg.arbitration_id == ((self.nodeID << 5) | self.db.get_message_by_name('Heartbeat').frame_id):
+                current_state = self.db.decode_message('Heartbeat', msg.data)['Axis_State']
                 if (current_state != 0x0) & (current_state != 0x1):
                     for msg1 in bus:
-                        if msg1.arbitration_id == ((self.nodeID << 5) | db.get_message_by_name('Get_Iq').frame_id):
-                            current = db.decode_message('Get_Iq', msg1.data)['Iq_Setpoint']
+                        if msg1.arbitration_id == ((self.nodeID << 5) | self.db.get_message_by_name('Get_Iq').frame_id):
+                            current = self.db.decode_message('Get_Iq', msg1.data)['Iq_Setpoint']
                             current_power = current/self.current_limit
                             return [True, current_power]
                 else:
@@ -202,8 +203,8 @@ class OdriveCAN(Motor, Reconfigurable):
 
     async def is_moving(self) -> bool:
         for msg in bus:
-            if msg.arbitration_id == ((self.nodeID << 5) | db.get_message_by_name('Get_Encoder_Estimates').frame_id):
-                estimates = db.decode_message('Get_Encoder_Estimates', msg.data)
+            if msg.arbitration_id == ((self.nodeID << 5) | self.db.get_message_by_name('Get_Encoder_Estimates').frame_id):
+                estimates = self.db.decode_message('Get_Encoder_Estimates', msg.data)
                 if abs(estimates['Vel_Estimate']) > 0.0:
                     return True
                 else:
@@ -222,15 +223,15 @@ class OdriveCAN(Motor, Reconfigurable):
                 LOGGER.error("Unable to set to requested state, setting to idle")
                 await self.send_can_message('Set_Axis_State', {'Axis_Requested_State': 0x01})
                 return
-            if msg.arbitration_id == ((self.nodeID << 5) | db.get_message_by_name('Heartbeat').frame_id):
-                current_state = db.decode_message('Heartbeat', msg.data)['Axis_State']
+            if msg.arbitration_id == ((self.nodeID << 5) | self.db.get_message_by_name('Heartbeat').frame_id):
+                current_state = self.db.decode_message('Heartbeat', msg.data)['Axis_State']
                 if current_state == state:
                     return
 
     async def surface_errors(self):
         for msg in bus:
-            if msg.arbitration_id == ((self.nodeID << 5) | db.get_message_by_name('Heartbeat').frame_id):
-                errors = db.decode_message('Heartbeat', msg.data)['Axis_Error']
+            if msg.arbitration_id == ((self.nodeID << 5) | self.db.get_message_by_name('Heartbeat').frame_id):
+                errors = self.db.decode_message('Heartbeat', msg.data)['Axis_Error']
                 if errors != 0x0:
                     await self.stop()
                     LOGGER.error("axis:", ODriveError(errors))
@@ -251,7 +252,7 @@ class OdriveCAN(Motor, Reconfigurable):
         self.nodeID = new_nodeID
 
     async def send_can_message(self, name, data):
-        msg = db.get_message_by_name(name)
+        msg = self.db.get_message_by_name(name)
         data = msg.encode(data)
         msg = can.Message(arbitration_id=msg.frame_id | self.nodeID << 5, is_extended_id=False, data=data)
         try:
