@@ -1,0 +1,19 @@
+on:
+  push:
+  release:
+    types: [published]
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v3
+    - name: build
+      run: tar -czf module.tar.gz --exclude=module.tar.gz .
+    - uses: viamrobotics/upload-module@main
+      with:
+        module-path: module.tar.gz
+        org-id: e76d1b3b-0468-4efd-bb7f-fb1d2b352fcb
+        platform: linux/arm64
+        version: ${{ github.event_name == 'release' && github.ref_name || format('0.0.0-{0}.{1}', github.ref_name, github.run_number) }}
+        cli-config-secret: ${{ secrets.cli_config }}
