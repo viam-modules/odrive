@@ -1,10 +1,10 @@
-from typing import ClassVar, Mapping, Any, Dict, Optional, Tuple
+from typing import ClassVar, Mapping, Any, Dict, Optional, Tuple, List
 
 from typing_extensions import Self
 
 from viam.module.types import Reconfigurable
 from viam.proto.app.robot import ComponentConfig
-from viam.proto.common import ResourceName
+from viam.proto.common import ResourceName, Geometry
 from viam.resource.base import ResourceBase
 from viam.resource.types import Model, ModelFamily
 
@@ -127,7 +127,10 @@ class OdriveSerial(Motor, Reconfigurable):
 
     async def is_moving(self):
         return self.odrv.axis0.current_state != AxisState.IDLE
-    
+
+    async def get_geometries(self) -> List[Geometry] :
+	    pass
+
     async def configure_trap_trajectory(self, rpm) -> None:
         rps = rpm / MINUTE_TO_SECOND
         self.odrv.axis0.trap_traj.config.vel_limit = rps
