@@ -18,12 +18,12 @@ LOGGER = getLogger(__name__)
 MINUTE_TO_SECOND = 60
 
 class Odrive(Motor, Reconfigurable):
-    MODEL: ClassVar[Model] = Model(ModelFamily("viam", "motor"), "odrive-serial")
+    MODEL: ClassVar[Model] = Model(ModelFamily("viam", "odrive"), "serial")
 
     @classmethod
     def new(cls, config: ComponentConfig, dependencies: Mapping[ResourceName, ResourceBase]) -> Self:
         odrive = cls(config.name)
         if config.attributes.fields["connection_type"].string_value == "canbus":
-            odrive.MODEL = ClassVar[Model] = Model(ModelFamily("viam", "motor"), "odrive-can")
+            odrive.MODEL = ClassVar[Model] = Model(ModelFamily("viam", "odrive"), "canbus")
         else:
-            odrive.MODEL = ClassVar[Model] = Model(ModelFamily("viam", "motor"), "odrive-serial")
+            odrive.MODEL = ClassVar[Model] = Model(ModelFamily("viam", "odrive"), "serial")
