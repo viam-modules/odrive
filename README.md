@@ -123,7 +123,7 @@ An alternative to adding an `odrive_config_file` is running the command `odrivet
       "name": "odrive-motor"
     },
     {
-      "model": "viam:motor:canbus",
+      "model": "viam:odrive:canbus",
       "namespace": "rdk",
       "attributes": {
         "canbus_node_id": 2,
