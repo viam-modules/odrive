@@ -1,7 +1,7 @@
 # ODrive S1 Modular Component
 
 This module provides an implementation of ODrive Robotics' [ODrive S1](https://odriverobotics.com/shop/odrive-s1) motor driver as a modular resource [extending](https://docs.viam.com/extend/modular-resources/) the Viam motor API.
-Prepare your ODrive and configure the module and resource to integrate an `odrive-serial` or `odrive-canbus` [motor](https://docs.viam.com/components/motor/#API) into your robot. 
+Prepare your ODrive and configure the module and resource to integrate an `serial` or `canbus` [motor](https://docs.viam.com/components/motor/#API) into your robot. 
 
 
 ## Getting Started
@@ -15,21 +15,21 @@ Make sure that you have:
     * installed `odrivetool`, `python-can`, `cantools`, and [Python `viam-sdk`](https://python.viam.dev)
 
 ### Connect your ODrive to your single-board computer
-* `"odrive-serial"`: plug the [USB Isolator for ODrive](https://odriverobotics.com/shop/usb-c-to-usb-a-cable-and-usb-isolator) into a USB port on your board, and then plug a USB-C to USB-A cable from the isolator to the Odrive.
-* `"odrive-canbus"`: wire the CANH and CANL pins from your board to your ODrive. Refer to the [ODrive pinout diagram](https://docs.odriverobotics.com/v/latest/pinout.html). 
+* `"serial"`: plug the [USB Isolator for ODrive](https://odriverobotics.com/shop/usb-c-to-usb-a-cable-and-usb-isolator) into a USB port on your board, and then plug a USB-C to USB-A cable from the isolator to the Odrive.
+* `"canbus"`: wire the CANH and CANL pins from your board to your ODrive. Refer to the [ODrive pinout diagram](https://docs.odriverobotics.com/v/latest/pinout.html). 
     * When making the initial connection to set up the ODrive (see *Getting Started*), you have to make a `serial` connection. After setting up the ODrive, you can either leave the serial connection plugged in, or remove it and just leave the CANH and CANL pins wired.
     * [Raspberry Pi specific]: You must run `sudo ip link set can0 up type can bitrate <baud_rate>` in your terminal to receive CAN messages. See *Troubleshooting: CAN Link Issues* for more details.
 
 ## Configuration
 
-To add an `odrive-canbus` or `odrive-serial` motor, update the JSON from the template with the following:
+To add an `canbus` or `serial` motor, update the JSON from the template with the following:
 
     * Update the `executable_path` (string) to the location of `run.sh` on your machine
-    * (For the `odrive-canbus`  model) update the `canbus_node_id` (int) to the node ID of whichever CAN node you'd like to use
+    * (For the `canbus`  model) update the `canbus_node_id` (int) to the node ID of whichever CAN node you'd like to use
     
 Copy and paste this JSON configuration for your robot on [the Viam app](https://app.viam.com): 
 
-### `viam:motor:odrive-serial`
+### `viam:odrive:serial`
 ```json
 {
   "modules": [
@@ -40,7 +40,7 @@ Copy and paste this JSON configuration for your robot on [the Viam app](https://
   ],
   "components": [
     {
-      "model": "viam:motor:odrive-serial",
+      "model": "viam:odrive:serial",
       "namespace": "rdk",
       "attributes": {
         "serial_number": "NUM000",
@@ -54,7 +54,7 @@ Copy and paste this JSON configuration for your robot on [the Viam app](https://
 }
 ```
 
-### `viam:motor:odrive-canbus`
+### `viam:odrive:canbus`
 ```json
 {
   "modules": [
@@ -65,7 +65,7 @@ Copy and paste this JSON configuration for your robot on [the Viam app](https://
   ],
   "components": [
     {
-      "model": "viam:motor:odrive-canbus",
+      "model": "viam:odrive:canbus",
       "namespace": "rdk",
       "attributes": {
         "canbus_node_id": 0,
@@ -83,10 +83,10 @@ The following attributes are available for the motor resources available in the 
 
 | Name | Type | Inclusion | Description |
 | ---- | ---- | --------- | ----------- |
-| `canbus_node_id` | int | Optional | Required for successful initialization of the `"odrive-canbus"` type. <br> Node ID of the CAN node you would like to use. You configured this when [setting up your ODrive](https://docs.odriverobotics.com/v/latest/can-guide.html#setting-up-the-odrive). <br> Example: `0` |
+| `canbus_node_id` | int | Optional | Required for successful initialization of the `"canbus"` type. <br> Node ID of the CAN node you would like to use. You configured this when [setting up your ODrive](https://docs.odriverobotics.com/v/latest/can-guide.html#setting-up-the-odrive). <br> Example: `0` |
 | `odrive_config_file` | string | Optional | Filepath of a separate JSON file containing your ODrive's native configuration. </br> See the [Odrive S1 Modular Component repository](https://github.com/viamrobotics/odrive/tree/main/sample-configs) for an example of this file. |
 | `serial_number` | string | Optional | The serial number of the ODrive. Note that this is not necessary if you only have one ODrive connected. See [Troubleshooting](#hanging) for help finding this value. |
-| `canbus_baud_rate` | string | Optional | [Baud rate](https://docs.odriverobotics.com/v/latest/can-guide.html#setting-up-the-odrive) of the ODrive CAN protocol. This attribute is only available for `"odrive-canbus"` connections. </br> Use [`odrivetool`](https://docs.odriverobotics.com/v/latest/odrivetool.html) to obtain this value with `<odrv>.can.config.baud_rate`. Format the string as a multiple of 1000 (k). <br> Example: `"250k"` |
+| `canbus_baud_rate` | string | Optional | [Baud rate](https://docs.odriverobotics.com/v/latest/can-guide.html#setting-up-the-odrive) of the ODrive CAN protocol. This attribute is only available for `"canbus"` connections. </br> Use [`odrivetool`](https://docs.odriverobotics.com/v/latest/odrivetool.html) to obtain this value with `<odrv>.can.config.baud_rate`. Format the string as a multiple of 1000 (k). <br> Example: `"250k"` |
 
 ### Add an odrive_config_file
 
@@ -96,7 +96,7 @@ To add an `odrive_config_file` and reconfigure your ODrive natively each time th
 After installing `odrivetool` run `odrivetool backup-config config.json` to extract your configs to a file called `config.json`.
 See the [ODrive documentation](https://docs.odriverobotics.com/v/latest/odrivetool.html#configuration-backup) for more info.
 3. `iq_msg_rate_ms` in the config defaults to `0`. You must set this to or around `100` to use the [motor API's `SetPower` method](https://docs.viam.com/components/motor/#setpower).
-4. If you add an `odrive_config_file` to an `odrive-canbus` motor, you will have to leave the serial connection established with your ODrive plugged in to the USB port, in addition to wiring the CANH and CANL pins.
+4. If you add an `odrive_config_file` to an `canbus` motor, you will have to leave the serial connection established with your ODrive plugged in to the USB port, in addition to wiring the CANH and CANL pins.
 
 An alternative to adding an `odrive_config_file` is running the command `odrivetool restore-config /path/to/config.json` in your terminal.
 
@@ -111,7 +111,7 @@ An alternative to adding an `odrive_config_file` is running the command `odrivet
   ],
   "components": [
     {
-      "model": "viam:motor:odrive-canbus",
+      "model": "viam:odrive:canbus",
       "namespace": "rdk",
       "attributes": {
         "canbus_node_id": 0,
@@ -123,7 +123,7 @@ An alternative to adding an `odrive_config_file` is running the command `odrivet
       "name": "odrive-motor"
     },
     {
-      "model": "viam:motor:odrive-canbus",
+      "model": "viam:odrive:canbus",
       "namespace": "rdk",
       "attributes": {
         "canbus_node_id": 2,
