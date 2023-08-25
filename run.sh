@@ -10,4 +10,4 @@ $PYTHON -m pip install -r requirements.txt -U # remove -U if viam-sdk should not
 
 # Be sure to use `exec` so that termination signals reach the python process,
 # or handle forwarding termination signals manually
-exec $PYTHON odrivemotor/src/main.py $@
+exec $PYTHON -m odrivemotor.src.main $@
