@@ -1,0 +1,4 @@
+odrive==^0.6.5.post2
+python-can==^4.2.1
+cantools==^38.0.2
+viam-sdk

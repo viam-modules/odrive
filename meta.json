@@ -1,5 +1,5 @@
 {
-  "module_id": "viam:odrive",
+  "name": "viam:odrive",
   "visibility": "public",
   "url": "https://github.com/viamrobotics/odrive",
   "description": "This module implements the motor API to work with the ODrive (S1 and Pro) motor controller.",
