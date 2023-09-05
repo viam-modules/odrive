@@ -3,8 +3,8 @@ import sys
 
 from viam.components.motor import Motor
 from viam.module.module import Module
-from .odriveSerial import OdriveSerial
-from .odriveCAN import OdriveCAN
+from .odriveSerial.odriveSerial import OdriveSerial
+from .odriveCAN.odriveCAN import OdriveCAN
 
 async def main(address: str):
     """This function creates and starts a new module, after adding all desired resources.
