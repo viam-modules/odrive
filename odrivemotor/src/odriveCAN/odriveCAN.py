@@ -16,12 +16,10 @@ from odrive.enums import *
 from threading import Thread
 import asyncio
 import time
-from .utils import set_configs, find_baudrate, rsetattr, find_axis_configs
+from ..utils import set_configs, find_baudrate, rsetattr, find_axis_configs
 
 import can
 import cantools
-
-bus = can.Bus("can0", bustype="socketcan")
 
 LOGGER = getLogger(__name__)
 MINUTE_TO_SECOND = 60.0
@@ -38,10 +36,12 @@ class OdriveCAN(Motor, Reconfigurable):
     goal: dict()
     serial_number: str
     db: Any
+    bus: Any
 
     @classmethod
     def new(cls, config: ComponentConfig, dependencies: Mapping[ResourceName, ResourceBase]) -> Self:
         odriveCAN = cls(config.name)
+        odriveCAN.bus = can.Bus("can0", bustype="socketcan")
         odriveCAN.odrive_config_file = config.attributes.fields["odrive_config_file"].string_value
         if ("canbus_node_id" not in config.attributes.fields) or (config.attributes.fields["canbus_node_id"].number_value < 0):
             LOGGER.error("non negative 'canbus_node_id' is a required config attribute")
@@ -173,7 +173,7 @@ class OdriveCAN(Motor, Reconfigurable):
         self.offset += position
 
     async def get_position(self, extra: Optional[Dict[str, Any]] = None, **kwargs) -> float:
-        for msg in bus:
+        for msg in self.bus:
             if msg.arbitration_id == ((self.nodeID << 5) | self.db.get_message_by_name('Get_Encoder_Estimates').frame_id):
                 encoderCount = self.db.decode_message('Get_Encoder_Estimates', msg.data)
                 return encoderCount['Pos_Estimate'] - self.offset
@@ -189,11 +189,11 @@ class OdriveCAN(Motor, Reconfigurable):
 
     async def is_powered(self, extra: Optional[Dict[str, Any]] = None, **kwargs) -> Tuple[bool, float]:
         current_power = 0
-        for msg in bus:
+        for msg in self.bus:
             if msg.arbitration_id == ((self.nodeID << 5) | self.db.get_message_by_name('Heartbeat').frame_id):
                 current_state = self.db.decode_message('Heartbeat', msg.data)['Axis_State']
                 if (current_state != 0x0) & (current_state != 0x1):
-                    for msg1 in bus:
+                    for msg1 in self.bus:
                         if msg1.arbitration_id == ((self.nodeID << 5) | self.db.get_message_by_name('Get_Iq').frame_id):
                             current = self.db.decode_message('Get_Iq', msg1.data)['Iq_Setpoint']
                             current_power = current/self.current_limit
@@ -202,7 +202,7 @@ class OdriveCAN(Motor, Reconfigurable):
                     return [False, 0]
 
     async def is_moving(self) -> bool:
-        for msg in bus:
+        for msg in self.bus:
             if msg.arbitration_id == ((self.nodeID << 5) | self.db.get_message_by_name('Get_Encoder_Estimates').frame_id):
                 estimates = self.db.decode_message('Get_Encoder_Estimates', msg.data)
                 if abs(estimates['Vel_Estimate']) > 0.0:
@@ -218,7 +218,7 @@ class OdriveCAN(Motor, Reconfigurable):
 
     async def wait_until_correct_state(self, state):
         timeout = time.time() + 60
-        for msg in bus:
+        for msg in self.bus:
             if time.time() > timeout:
                 LOGGER.error("Unable to set to requested state, setting to idle")
                 await self.send_can_message('Set_Axis_State', {'Axis_Requested_State': 0x01})
@@ -229,7 +229,7 @@ class OdriveCAN(Motor, Reconfigurable):
                     return
 
     async def surface_errors(self):
-        for msg in bus:
+        for msg in self.bus:
             if msg.arbitration_id == ((self.nodeID << 5) | self.db.get_message_by_name('Heartbeat').frame_id):
                 errors = self.db.decode_message('Heartbeat', msg.data)['Axis_Error']
                 if errors != 0x0:
@@ -256,7 +256,7 @@ class OdriveCAN(Motor, Reconfigurable):
         data = msg.encode(data)
         msg = can.Message(arbitration_id=msg.frame_id | self.nodeID << 5, is_extended_id=False, data=data)
         try:
-            bus.send(msg)
+            self.bus.send(msg)
         except can.CanError:
             LOGGER.error("Message (" + name + ") NOT sent! Please verify can0 is working first")
             LOGGER.warn("You may need to run 'sudo ip link set can0 up type can bitrate <baud_rate>' in your terminal. " +

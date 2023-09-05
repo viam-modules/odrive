@@ -16,7 +16,7 @@ from odrive.enums import *
 from threading import Thread
 import asyncio
 import time
-from .utils import set_configs
+from ..utils import set_configs
 
 LOGGER = getLogger(__name__)
 MINUTE_TO_SECOND = 60
