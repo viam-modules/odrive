@@ -4,7 +4,7 @@ This module implements the motor driver for ODrive Robotics' [ODrive S1](https:/
 
 ## Getting Started
 
-To use this module, follow the instructions to [add a module from the Viam registry](https://docs.viam.com/registry/configure/), and select the `viam:odrive:serial` or `viam:odrive:canbus` model from the [`odrive` module](https://app.viam.com/module/viam/odrive), depending on the type of motor you are using.
+To use this module, follow the instructions to [add a module from the Viam registry](https://docs.viam.com/registry/configure/), choose the **Motor** component, and select the `odrive:serial` or `odrive:canbus` model from the [`odrive` module](https://app.viam.com/module/viam/odrive), depending on the type of motor you are using.
 
 ## Configuration
 
@@ -33,7 +33,7 @@ Connect your ODrive motor to your single-board computer in one of the following 
     * You must make a `serial` connection initially to set up your ODrive, even if you intend to use a `canbus` connection eventually. After setting up the ODrive using a `serial` connection, if you wish to use the `canbus` model, you can either leave the serial connection plugged in or remove it and leave only the CANH and CANL pins wired.
     * If you are using a Raspberry Pi, you must run `sudo ip link set can0 up type can bitrate <baud_rate>` in the terminal on your single-board computer in order to receive CAN messages. See [Troubleshooting: CAN Link Issues](#can-link-issues) for more details.
 
-## Configuration
+### Configure the ODrive motor
 
 > [!NOTE]  
 > Before configuring your motor, you must [create a robot](https://docs.viam.com/manage/fleet/robots/#add-a-new-robot).
