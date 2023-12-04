@@ -1,6 +1,6 @@
 # ODrive Modular Component
 
-This module implements the motor driver for ODrive Robotics' [ODrive S1](https://odriverobotics.com/shop/odrive-s1) and [ODrive Pro](https://odriverobotics.com/shop/odrive-pro) motors to be used with [`viam-server`](https://docs.viam.com/). This driver supports either a `serial` or `canbus` motor.
+This module implements the motor driver for ODrive Robotics' [ODrive S1](https://odriverobotics.com/shop/odrive-s1) and [ODrive Pro](https://odriverobotics.com/shop/odrive-pro) motors to be used with [`viam-server`](https://docs.viam.com/get-started/installation/). This driver supports either a `serial` or `canbus` motor.
 
 ## Getting Started
 
@@ -10,9 +10,9 @@ To use this module, follow the instructions to [add a module from the Viam regis
 
 ### Prepare your single-board computer
 
-1. If you haven’t already, [install viam-server](https://docs.viam.com/installation/) on your single-board computer.
+1. If you haven’t already, [install viam-server](https://docs.viam.com/get-started/installation/) on your single-board computer.
 2. Install [`odrivetool`](https://docs.odriverobotics.com/v/latest/interfaces/odrivetool.html), [`python-can`](https://pypi.org/project/python-can/), [`cantools`](https://pypi.org/project/cantools/), and the [Viam Python SDK](https://python.viam.dev).
-3. Enable SPI communication on your single-board computer to support the use of several common CANHats. If you are using a Raspberry Pi, see [these instructions](https://docs.viam.com/installation/prepare/rpi-setup/#enable-communication-protocols). Other single-board computers may have other ways of setting up CANBus communications; consult the documentation for your specific board for further guidance.
+3. Enable SPI communication on your single-board computer to support the use of several common CANHats. If you are using a Raspberry Pi, see [these instructions](https://docs.viam.com/get-started/installation/prepare/rpi-setup/#enable-communication-protocols). Other single-board computers may have other ways of setting up CANBus communications; consult the documentation for your specific board for further guidance.
 
 ### Configure your ODrive motor hardware
 
@@ -36,7 +36,7 @@ Connect your ODrive motor to your single-board computer in one of the following 
 ### Configure the ODrive motor
 
 > [!NOTE]  
-> Before configuring your motor, you must [create a robot](https://docs.viam.com/manage/fleet/robots/#add-a-new-robot).
+> Before configuring your motor, you must [create a robot](https://docs.viam.com/fleet/machines/#add-a-new-robot).
 
 Navigate to the **Config** tab of your robot’s page in [the Viam app](https://app.viam.com/). Click on the **Components** subtab and click **Create component**. Select the `motor` type, then select the `odrive:serial` or `odrive:canbus` model. Enter a name for your motor and click **Create**.
 
@@ -64,7 +64,7 @@ Update the `serial_number` field with the specific serial number of your ODrive 
 Update the `canbus_node_id` (int) to the node ID of whichever CAN node you'd like to use.
 
 > [!NOTE]  
-> For more information, see [Configure a Robot](https://docs.viam.com/manage/configuration/).
+> For more information, see [Configure a Robot](https://docs.viam.com/build/configure/).
 
 ### Attributes
 
@@ -130,8 +130,8 @@ See the [ODrive sample `config.json` file](https://github.com/viamrobotics/odriv
 
 ## Next Steps
 
-- To test your ODrive motor, go to the [**Control** tab](https://docs.viam.com/manage/fleet/robots/#control).
-- To write code against your ODrive motor, use one of the [available SDKs](https://docs.viam.com/program/).
+- To test your ODrive motor, go to the [**Control** tab](https://docs.viam.com/fleet/machines/#control).
+- To write code against your ODrive motor, use one of the [available SDKs](https://docs.viam.com/build/program/).
 - To view examples using a motor component, explore [these tutorials](https://docs.viam.com/tutorials/).
   
 ## Troubleshooting
