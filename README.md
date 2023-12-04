@@ -19,7 +19,7 @@ To use this module, follow the instructions to [add a module from the Viam regis
 > [!NOTE]  
 > When making the initial connection to set up the ODrive, you must make a `serial` connection. If you intend to use a `canbus` connection, you can either leave the serial connection plugged in, or remove it and just leave the CANH and CANL pins wired after you initially set up the ODrive.
 
-Use `odrivetool` to configure and tune your motor properly. See the [ODrive documentation](https://docs.odriverobotics.com/v/latest/getting-started.html) for more information. This configuration remains on the same ODrive motor controller across reboots, and only changes if you run `odrivetool` again to reconfigure your ODrive motor.
+Use `odrivetool` to configure and tune your motor properly. This configuration remains on the same ODrive motor controller across reboots, but you can run `odrivetool` again to make changes to the configuration as needed. See the [ODrive documentation](https://docs.odriverobotics.com/v/latest/getting-started.html) for more information.
    * Note that `iq_msg_rate_ms` in the config defaults to `0`, and you **must** set this to around `100` to use the [motor API's `SetPower` method](https://docs.viam.com/components/motor/#setpower).
    * See the section [Add an `odrive_config_file`](#add-an-odrive_config_file) for more information on dynamic configuration.
 * See the [ODrive CAN documentation](https://docs.odriverobotics.com/v/latest/can-guide.html) for detailed information on how to set up CAN on your ODrive.
@@ -28,7 +28,7 @@ Use `odrivetool` to configure and tune your motor properly. See the [ODrive docu
 
 Connect your ODrive motor to your single-board computer in one of the following ways:
 
-* For a `serial` connection: plug the [USB Isolator for ODrive](https://odriverobotics.com/shop/usb-c-to-usb-a-cable-and-usb-isolator) into a USB port on your board, and then plug a USB-C to USB-A cable from the isolator to the ODrive.
+* For a `serial` connection: plug the [USB Isolator for ODrive](https://odriverobotics.com/shop/usb-c-to-usb-a-cable-and-usb-isolator) into a USB port on your board, and then plug a USB-A to USB-C cable from the isolator to the ODrive.
 * For a `canbus` connection: wire the CANH and CANL pins from your board to your ODrive. Refer to the [ODrive pinout diagram](https://docs.odriverobotics.com/v/latest/pinout.html) for further guidance.
     * You must make a `serial` connection initially to set up your ODrive, even if you intend to use a `canbus` connection eventually. After setting up the ODrive using a `serial` connection, if you wish to use the `canbus` model, you can either leave the serial connection plugged in or remove it and leave only the CANH and CANL pins wired.
     * If you are using a Raspberry Pi, you must run `sudo ip link set can0 up type can bitrate <baud_rate>` in the terminal on your single-board computer in order to receive CAN messages. See [Troubleshooting: CAN Link Issues](#can-link-issues) for more details.
@@ -38,7 +38,7 @@ Connect your ODrive motor to your single-board computer in one of the following 
 > [!NOTE]  
 > Before configuring your motor, you must [create a robot](https://docs.viam.com/manage/fleet/robots/#add-a-new-robot).
 
-Navigate to the **Config** tab of your robot’s page in [the Viam app](https://app.viam.com/). Click on the **Components** subtab and click **Create component**. Select the `motor` type, then select the `odrive:serial` or `odrive:canbus` model. Enter a name for your base and click **Create**.
+Navigate to the **Config** tab of your robot’s page in [the Viam app](https://app.viam.com/). Click on the **Components** subtab and click **Create component**. Select the `motor` type, then select the `odrive:serial` or `odrive:canbus` model. Enter a name for your motor and click **Create**.
 
 On the new component panel, copy and paste the following attribute template into your motor’s **Attributes** box, depending on whether you are using a `serial` connection or a `canbus` connection:
 
