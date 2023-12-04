@@ -38,7 +38,7 @@ Connect your ODrive motor to your single-board computer in one of the following 
 > [!NOTE]  
 > Before configuring your motor, you must [create a robot](https://docs.viam.com/manage/fleet/robots/#add-a-new-robot).
 
-Navigate to the **Config** tab of your robot’s page in [the Viam app](https://app.viam.com/). Click on the **Components** subtab and click **Create component**. Select the `base` type, then select the `agilex-limo` model. Enter a name for your base and click **Create**.
+Navigate to the **Config** tab of your robot’s page in [the Viam app](https://app.viam.com/). Click on the **Components** subtab and click **Create component**. Select the `motor` type, then select the `odrive:serial` or `odrive:canbus` model. Enter a name for your base and click **Create**.
 
 On the new component panel, copy and paste the following attribute template into your motor’s **Attributes** box, depending on whether you are using a `serial` connection or a `canbus` connection:
 
