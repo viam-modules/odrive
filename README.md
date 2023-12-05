@@ -170,7 +170,7 @@ Navigate to the **Config** tab on your robot's page and select **Raw JSON** mode
 ## Next Steps
 
 - To test your ODrive motor, go to the [**Control** tab](https://docs.viam.com/fleet/machines/#control).
-- To write code against your ODrive motor, use one of the [available SDKs](https://docs.viam.com/build/program/).
+- To write code to control your ODrive motor, use one of the [available SDKs](https://docs.viam.com/build/program/).
 - To view examples using a motor component, explore [these tutorials](https://docs.viam.com/tutorials/).
   
 ## Troubleshooting
