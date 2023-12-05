@@ -4,7 +4,7 @@ This module implements the motor driver for ODrive Robotics' [ODrive S1](https:/
 
 ## Getting Started
 
-To use this module, follow the instructions to [add a module from the Viam registry](https://docs.viam.com/registry/configure/), choose the **Motor** component, and select the `odrive:serial` or `odrive:canbus` model from the [`odrive` module](https://app.viam.com/module/viam/odrive), depending on the type of motor you are using.
+To use this module, follow the instructions to [add a module from the Viam registry](https://docs.viam.com/registry/configure/), choose the **Motor** component, and select the `odrive:serial` or `odrive:canbus` model from the [`odrive` module](https://app.viam.com/module/viam/odrive), depending on how you have connected your ODrive motor.
 
 ## Configuration
 
