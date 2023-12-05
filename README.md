@@ -89,14 +89,53 @@ To add an `odrive_config_file` and reconfigure your ODrive natively each time th
 
 See the [ODrive sample `config.json` file](https://github.com/viamrobotics/odrive/tree/main/sample-configs) for an example of an `odrive_config_file`.
 
-### Example Viam CAN Config with 2 motors and odrive_config_files
+### Example `serial` configuration
+
+This example shows the configuration for an ODrive motor using a `serial` connection, including an `odrive_config_file`.
+
+You can add or edit this configuration on your robot's page on the [Viam app](https://app.viam.com/).
+Navigate to the **Config** tab on your robot's page and select **Raw JSON** mode.
 
 ```json
 {
   "modules": [
     {
-      "name": "odrive",
-      "executable_path": "path/to/run.sh"
+      "type": "registry",
+      "name": "viam_odrive",
+      "module_id": "viam:odrive",
+      "version": "0.0.13"
+    }
+  ],
+  "components": [
+    {
+      "name": "my-odrive-motor",
+      "model": "viam:odrive:serial",
+      "type": "motor",
+      "namespace": "rdk",
+      "attributes": {
+        "odrive_config_file": "/path/to/my/config.json"
+      },
+      "depends_on": []
+    }
+  ]
+}
+```
+
+### Example `canbus` configuration
+
+This example shows the configuration for two ODrive motors using a `canbus` connection, where each motor specifies its own `odrive_config_file`.
+
+You can add or edit this configuration on your robot's page on the [Viam app](https://app.viam.com/).
+Navigate to the **Config** tab on your robot's page and select **Raw JSON** mode.
+
+```json
+{
+  "modules": [
+    {
+      "type": "registry",
+      "name": "viam_odrive",
+      "module_id": "viam:odrive",
+      "version": "0.0.13"
     }
   ],
   "components": [
@@ -110,7 +149,7 @@ See the [ODrive sample `config.json` file](https://github.com/viamrobotics/odriv
       },
       "depends_on": [],
       "type": "motor",
-      "name": "odrive-motor"
+      "name": "my-odrive-motor"
     },
     {
       "model": "viam:odrive:canbus",
@@ -122,7 +161,7 @@ See the [ODrive sample `config.json` file](https://github.com/viamrobotics/odriv
       },
       "depends_on": [],
       "type": "motor",
-      "name": "odrive-motor-2"
+      "name": "my-odrive-motor-2"
     }
   ]
 }
