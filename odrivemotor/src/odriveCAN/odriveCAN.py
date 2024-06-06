@@ -137,6 +137,7 @@ class OdriveCAN(Motor, Reconfigurable):
         rps = rpm / MINUTE_TO_SECOND
 
         if revolutions == 0.0:
+            LOGGER.warn("Deprecated: setting revolutions == 0 will spin the motor indefinitely at the specified RPM")
             await self.send_can_message('Set_Controller_Mode', {'Control_Mode': 0x02, 'Input_Mode': 0x01})
             await self.send_can_message('Set_Axis_State', {'Axis_Requested_State': 0x08})
             await self.wait_until_correct_state(AxisState.CLOSED_LOOP_CONTROL)

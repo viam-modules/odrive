@@ -88,6 +88,7 @@ class OdriveSerial(Motor, Reconfigurable):
     async def go_for(self, rpm: float, revolutions: float, extra: Optional[Dict[str, Any]] = None, **kwargs):
         rps = rpm / MINUTE_TO_SECOND
         if revolutions == 0:
+            LOGGER.warn("Deprecated: setting revolutions == 0 will spin the motor indefinitely at the specified RPM")
             self.odrv.axis0.controller.config.input_mode = InputMode.PASSTHROUGH
             self.odrv.axis0.controller.config.control_mode = ControlMode.VELOCITY_CONTROL
             self.odrv.axis0.requested_state = AxisState.CLOSED_LOOP_CONTROL
