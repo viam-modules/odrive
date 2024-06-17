@@ -109,6 +109,9 @@ class OdriveSerial(Motor, Reconfigurable):
         revolutions = revolutions - current_position
         await self.go_for(rpm, revolutions)
 
+    async def set_rpm(self, rpm: float, extra: Optional[Dict[str, Any]] = None, **kwargs):
+        LOGGER.warn("set_rpm is unimplemented")
+
     async def reset_zero_position(self, offset: float, extra: Optional[Dict[str, Any]] = None, **kwargs):
         position = await self.get_position()
         self.offset += position
