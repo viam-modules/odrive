@@ -88,6 +88,7 @@ class OdriveSerial(Motor, Reconfigurable):
     async def go_for(self, rpm: float, revolutions: float, extra: Optional[Dict[str, Any]] = None, **kwargs):
         rps = rpm / MINUTE_TO_SECOND
         if revolutions == 0:
+            LOGGER.warn("Deprecated: setting revolutions == 0 will spin the motor indefinitely at the specified RPM")
             self.odrv.axis0.controller.config.input_mode = InputMode.PASSTHROUGH
             self.odrv.axis0.controller.config.control_mode = ControlMode.VELOCITY_CONTROL
             self.odrv.axis0.requested_state = AxisState.CLOSED_LOOP_CONTROL
@@ -110,7 +111,12 @@ class OdriveSerial(Motor, Reconfigurable):
         await self.go_for(rpm, revolutions)
 
     async def set_rpm(self, rpm: float, extra: Optional[Dict[str, Any]] = None, **kwargs):
-        LOGGER.warn("set_rpm is unimplemented")
+        rps = rpm / MINUTE_TO_SECOND
+        self.odrv.axis0.controller.config.input_mode = InputMode.PASSTHROUGH
+        self.odrv.axis0.controller.config.control_mode = ControlMode.VELOCITY_CONTROL
+        self.odrv.axis0.requested_state = AxisState.CLOSED_LOOP_CONTROL
+        await self.wait_until_correct_state(AxisState.CLOSED_LOOP_CONTROL)
+        self.odrv.axis0.controller.input_vel = rps
 
     async def reset_zero_position(self, offset: float, extra: Optional[Dict[str, Any]] = None, **kwargs):
         position = await self.get_position()

@@ -137,6 +137,7 @@ class OdriveCAN(Motor, Reconfigurable):
         rps = rpm / MINUTE_TO_SECOND
 
         if revolutions == 0.0:
+            LOGGER.warn("Deprecated: setting revolutions == 0 will spin the motor indefinitely at the specified RPM")
             await self.send_can_message('Set_Controller_Mode', {'Control_Mode': 0x02, 'Input_Mode': 0x01})
             await self.send_can_message('Set_Axis_State', {'Axis_Requested_State': 0x08})
             await self.wait_until_correct_state(AxisState.CLOSED_LOOP_CONTROL)
@@ -169,7 +170,11 @@ class OdriveCAN(Motor, Reconfigurable):
             LOGGER.info("Already at requested position")
     
     async def set_rpm(self, rpm: float, extra: Optional[Dict[str, Any]] = None, **kwargs):
-        LOGGER.warn("set_rpm is unimplemented")
+        rps = rpm / MINUTE_TO_SECOND
+        await self.send_can_message('Set_Controller_Mode', {'Control_Mode': 0x02, 'Input_Mode': 0x01})
+        await self.send_can_message('Set_Axis_State', {'Axis_Requested_State': 0x08})
+        await self.wait_until_correct_state(AxisState.CLOSED_LOOP_CONTROL)
+        await self.send_can_message('Set_Input_Vel', {'Input_Vel': rps, 'Input_Torque_FF': 0})
 
     async def reset_zero_position(self, offset: float, extra: Optional[Dict[str, Any]] = None, **kwargs):
         position = await self.get_position()
