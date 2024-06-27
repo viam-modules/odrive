@@ -136,30 +136,22 @@ class OdriveCAN(Motor, Reconfigurable):
     async def go_for(self, rpm: float, revolutions: float, extra: Optional[Dict[str, Any]] = None, **kwargs):
         rps = rpm / MINUTE_TO_SECOND
 
-        if revolutions == 0.0:
-            LOGGER.warn("Deprecated: setting revolutions == 0 will spin the motor indefinitely at the specified RPM")
-            await self.send_can_message('Set_Controller_Mode', {'Control_Mode': 0x02, 'Input_Mode': 0x01})
-            await self.send_can_message('Set_Axis_State', {'Axis_Requested_State': 0x08})
-            await self.wait_until_correct_state(AxisState.CLOSED_LOOP_CONTROL)
-            await self.send_can_message('Set_Input_Vel', {'Input_Vel': rps, 'Input_Torque_FF': 0})
+        await self.send_can_message('Set_Controller_Mode', {'Control_Mode': 0x03, 'Input_Mode': 0x05})
+        await self.send_can_message('Set_Traj_Vel_Limit', {'Traj_Vel_Limit': abs(rps)})
+        await self.send_can_message('Set_Axis_State', {'Axis_Requested_State': 0x08})
+        await self.wait_until_correct_state(AxisState.CLOSED_LOOP_CONTROL)
 
+        current_position = await self.get_position()
+        goal_position = 0
+        if rpm > 0.0:
+            goal_position = current_position+revolutions+self.offset
+            await self.send_can_message('Set_Input_Pos', {'Input_Pos': (goal_position), 'Vel_FF': 0, 'Torque_FF': 0})
         else:
-            await self.send_can_message('Set_Controller_Mode', {'Control_Mode': 0x03, 'Input_Mode': 0x05})
-            await self.send_can_message('Set_Traj_Vel_Limit', {'Traj_Vel_Limit': abs(rps)})
-            await self.send_can_message('Set_Axis_State', {'Axis_Requested_State': 0x08})
-            await self.wait_until_correct_state(AxisState.CLOSED_LOOP_CONTROL)
+            goal_position = current_position-revolutions+self.offset
+            await self.send_can_message('Set_Input_Pos', {'Input_Pos': (goal_position), 'Vel_FF': 0, 'Torque_FF': 0})
 
-            current_position = await self.get_position()
-            goal_position = 0
-            if rpm > 0.0:
-                goal_position = current_position+revolutions+self.offset
-                await self.send_can_message('Set_Input_Pos', {'Input_Pos': (goal_position), 'Vel_FF': 0, 'Torque_FF': 0})
-            else:
-                goal_position = current_position-revolutions+self.offset
-                await self.send_can_message('Set_Input_Pos', {'Input_Pos': (goal_position), 'Vel_FF': 0, 'Torque_FF': 0})
-
-            self.goal["position"] = goal_position
-            self.goal["active"] = True
+        self.goal["position"] = goal_position
+        self.goal["active"] = True
     
     async def go_to(self, rpm: float, revolutions: float, extra: Optional[Dict[str, Any]] = None, **kwargs):
         current_position = await self.get_position()
