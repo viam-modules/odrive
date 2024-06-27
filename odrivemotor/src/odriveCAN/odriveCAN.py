@@ -127,6 +127,8 @@ class OdriveCAN(Motor, Reconfigurable):
             self.set_node_id(new_nodeID)
 
     async def set_power(self, power: float, extra: Optional[Dict[str, Any]] = None, **kwargs):
+        if abs(power) < 0.1:
+            LOGGER.error("Cannot move motor at a power percent that is nearly 0")
         torque = power*self.current_limit*self.torque_constant
         await self.send_can_message('Set_Axis_State', {'Axis_Requested_State': 0x08})
         await self.wait_until_correct_state(AxisState.CLOSED_LOOP_CONTROL)
@@ -134,8 +136,9 @@ class OdriveCAN(Motor, Reconfigurable):
         await self.send_can_message('Set_Input_Torque', {'Input_Torque': torque})
 
     async def go_for(self, rpm: float, revolutions: float, extra: Optional[Dict[str, Any]] = None, **kwargs):
+        if abs(rpm) < 0.1:
+            LOGGER.error("Cannot move motor at an RPM that is nearly 0")
         rps = rpm / MINUTE_TO_SECOND
-
         await self.send_can_message('Set_Controller_Mode', {'Control_Mode': 0x03, 'Input_Mode': 0x05})
         await self.send_can_message('Set_Traj_Vel_Limit', {'Traj_Vel_Limit': abs(rps)})
         await self.send_can_message('Set_Axis_State', {'Axis_Requested_State': 0x08})
@@ -162,6 +165,8 @@ class OdriveCAN(Motor, Reconfigurable):
             LOGGER.info("Already at requested position")
     
     async def set_rpm(self, rpm: float, extra: Optional[Dict[str, Any]] = None, **kwargs):
+        if abs(rpm) < 0.1:
+            LOGGER.error("Cannot move motor at an RPM that is nearly 0")
         rps = rpm / MINUTE_TO_SECOND
         await self.send_can_message('Set_Controller_Mode', {'Control_Mode': 0x02, 'Input_Mode': 0x01})
         await self.send_can_message('Set_Axis_State', {'Axis_Requested_State': 0x08})
