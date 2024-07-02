@@ -77,7 +77,7 @@ class OdriveSerial(Motor, Reconfigurable):
             self.current_lim = self.odrv.axis0.config.general_lockin.current
 
     async def set_power(self, power: float, extra: Optional[Dict[str, Any]] = None, **kwargs):
-        if abs(power) < 0.1:
+        if abs(power) < 0.001:
             LOGGER.error("Cannot move motor at a power percent that is nearly 0")
         torque = power * self.current_lim * self.torque_constant
         self.odrv.axis0.controller.config.input_mode = InputMode.PASSTHROUGH
@@ -88,7 +88,7 @@ class OdriveSerial(Motor, Reconfigurable):
         self.odrv.axis0.controller.input_torque = torque
 
     async def go_for(self, rpm: float, revolutions: float, extra: Optional[Dict[str, Any]] = None, **kwargs):
-        if abs(rpm) < 0.1:
+        if abs(rpm) < 0.001:
             LOGGER.error("Cannot move motor at an RPM that is nearly 0")
         rps = rpm / MINUTE_TO_SECOND
         await self.configure_trap_trajectory(abs(rpm))
@@ -107,7 +107,7 @@ class OdriveSerial(Motor, Reconfigurable):
         await self.go_for(rpm, revolutions)
 
     async def set_rpm(self, rpm: float, extra: Optional[Dict[str, Any]] = None, **kwargs):
-        if abs(rpm) < 0.1:
+        if abs(rpm) < 0.001:
             LOGGER.error("Cannot move motor at an RPM that is nearly 0")
         rps = rpm / MINUTE_TO_SECOND
         self.odrv.axis0.controller.config.input_mode = InputMode.PASSTHROUGH
