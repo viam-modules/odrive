@@ -16,6 +16,7 @@ from odrive.enums import *
 from threading import Thread
 import asyncio
 import time
+import math
 from ..utils import set_configs, find_baudrate, rsetattr, find_axis_configs
 from pathlib import Path
 
@@ -148,13 +149,8 @@ class OdriveCAN(Motor, Reconfigurable):
         await self.wait_until_correct_state(AxisState.CLOSED_LOOP_CONTROL)
 
         current_position = await self.get_position()
-        goal_position = 0
-        if rpm > 0.0:
-            goal_position = current_position+revolutions+self.offset
-            await self.send_can_message('Set_Input_Pos', {'Input_Pos': (goal_position), 'Vel_FF': 0, 'Torque_FF': 0})
-        else:
-            goal_position = current_position-revolutions+self.offset
-            await self.send_can_message('Set_Input_Pos', {'Input_Pos': (goal_position), 'Vel_FF': 0, 'Torque_FF': 0})
+        goal_position = current_position + math.copysign(revolutions, rpm) + self.offset
+        await self.send_can_message('Set_Input_Pos', {'Input_Pos': (goal_position), 'Vel_FF': 0, 'Torque_FF': 0})
 
         self.goal["position"] = goal_position
         self.goal["active"] = True

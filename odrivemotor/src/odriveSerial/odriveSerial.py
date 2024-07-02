@@ -16,6 +16,7 @@ from odrive.enums import *
 from threading import Thread
 import asyncio
 import time
+import math
 from ..utils import set_configs
 
 LOGGER = getLogger(__name__)
@@ -93,12 +94,8 @@ class OdriveSerial(Motor, Reconfigurable):
         rps = rpm / MINUTE_TO_SECOND
         await self.configure_trap_trajectory(abs(rpm))
         current_position = await self.get_position()
-        if rpm > 0:
-            # the line below causes motion.
-            self.odrv.axis0.controller.input_pos = current_position + revolutions + self.offset
-        else:
-            # the line below causes motion.
-            self.odrv.axis0.controller.input_pos = current_position - revolutions + self.offset
+        # the line below causes motion.
+        self.odrv.axis0.controller.input_pos = current_position + math.copysign(revolutions, rpm) + self.offset
         await self.wait_and_set_to_idle(rps, revolutions)
 
     async def go_to(self, rpm: float, revolutions: float, extra: Optional[Dict[str, Any]] = None, **kwargs):
