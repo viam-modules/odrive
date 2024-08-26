@@ -1,7 +1,7 @@
 {
   "module_id": "viam:odrive",
   "visibility": "public",
-  "url": "https://github.com/viamrobotics/odrive",
+  "url": "https://github.com/viam-modules/odrive",
   "description": "This module implements the motor API to work with the ODrive (S1 and Pro) motor controller. The `serial` implementation has been tested on darwin and linux, while the `canbus` implementation has only been tested on linux",
   "models": [
     {
