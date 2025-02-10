@@ -16,7 +16,7 @@ Navigate to the **Config** tab of your robot’s page in [the Viam app](https://
 
 ### Prepare your single-board computer
 
-2. Install [`odrivetool`](https://docs.odriverobotics.com/v/latest/interfaces/odrivetool.html)
+1. Install [`odrivetool`](https://docs.odriverobotics.com/v/latest/interfaces/odrivetool.html)
 
 ### Configure your ODrive motor hardware
 
@@ -78,9 +78,8 @@ This example shows the configuration for an ODrive motor using a `serial` connec
 
 ### Prepare your single-board computer
 
-1. If you haven’t already, [install viam-server](https://docs.viam.com/get-started/installation/) on your single-board computer.
-2. Install [`odrivetool`](https://docs.odriverobotics.com/v/latest/interfaces/odrivetool.html), [`python-can`](https://pypi.org/project/python-can/), [`cantools`](https://pypi.org/project/cantools/), and the [Viam Python SDK](https://python.viam.dev).
-3. Enable SPI communication on your single-board computer to support the use of several common CANHats. If you are using a Raspberry Pi, see [these instructions](https://docs.viam.com/get-started/installation/prepare/rpi-setup/#enable-communication-protocols). Other single-board computers may have other ways of setting up CANBus communications; consult the documentation for your specific board for further guidance.
+1. Install [`odrivetool`](https://docs.odriverobotics.com/v/latest/interfaces/odrivetool.html), [`python-can`](https://pypi.org/project/python-can/), and [`cantools`](https://pypi.org/project/cantools/)
+2. Enable SPI communication on your single-board computer to support the use of several common CANHats. If you are using a Raspberry Pi, see [these instructions](https://docs.viam.com/get-started/installation/prepare/rpi-setup/#enable-communication-protocols). Other single-board computers may have other ways of setting up CANBus communications; consult the documentation for your specific board for further guidance.
 
 ### Configure your ODrive motor hardware
 
