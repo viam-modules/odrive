@@ -6,11 +6,15 @@
   "models": [
     {
       "api": "rdk:component:motor",
-      "model": "viam:odrive:serial"
+      "model": "viam:odrive:serial",
+      "markdown_link": "README.md#model-viamodriveserial",
+      "short_description": "motor model for ODrive motors connected via serial."
     },
     {
       "api": "rdk:component:motor",
-      "model": "viam:odrive:canbus"
+      "model": "viam:odrive:canbus",
+      "markdown_link": "README.md#model-viamodrivecanbus",
+      "short_description": "motor model for ODrive motors connected via canbus."
     }
   ],
   "entrypoint": "run.sh"
