@@ -65,17 +65,6 @@ class OdriveSerial(Motor, EasyResource):
     def validate_config(cls, config: ComponentConfig) -> Tuple[Sequence[str], Sequence[str]]:
         return [], []
 
-    def reconfigure(self, config: ComponentConfig, dependencies: Mapping[ResourceName, ResourceBase]):
-        self.serial_number = config.attributes.fields["serial_number"].string_value
-        
-        config_file = config.attributes.fields["odrive_config_file"].string_value
-        if (config_file != self.odrive_config_file) and config_file != "":
-            self.logger.info("Updating odrive configurations.")
-            self.odrive_config_file = config_file
-            set_configs(self.odrv, self.odrive_config_file)
-            self.torque_constant = self.odrv.axis0.config.motor.torque_constant
-            self.current_lim = self.odrv.axis0.config.general_lockin.current
-
     async def set_power(self, power: float, *, extra: Optional[Dict[str, Any]] = None, timeout: Optional[float] = None, **kwargs):
         if abs(power) < 0.001:
             self.logger.error("Cannot move motor at a power percent that is nearly 0")

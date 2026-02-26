@@ -110,26 +110,6 @@ class OdriveCAN(Motor, EasyResource):
     def validate_config(cls, config: ComponentConfig) -> Tuple[Sequence[str], Sequence[str]]:
         return [], []
 
-    async def reconfigure(self, config: ComponentConfig, dependencies: Mapping[ResourceName, ResourceBase]):
-        if config.attributes.fields["canbus_baud_rate"].string_value != "":
-            baud_rate = config.attributes.fields["canbus_baud_rate"].string_value
-            baud_rate = baud_rate.replace("k", "000")
-            baud_rate = baud_rate.replace("K", "000")
-        elif self.odrive_config_file != "":
-            baud_rate = find_baudrate(self.odrive_config_file)
-            baud_rate = str(baud_rate)
-        else:
-            baud_rate = self.baud_rate
-
-        if baud_rate != self.baud_rate:
-            self.baud_rate = baud_rate
-            self.logger.info("Since you changed the baud rate, you must run 'sudo ip link set can0 up type can bitrate <baud_rate>' "+
-                         "in your terminal. See the README Troubleshooting section for more details.")
-        
-        new_nodeID = config.attributes.fields["canbus_node_id"].number_value
-        if new_nodeID != self.nodeID:
-            await self.set_node_id(new_nodeID)
-
     async def set_power(self, power: float, *, extra: Optional[Dict[str, Any]] = None, timeout: Optional[float] = None, **kwargs):
         if abs(power) < 0.001:
             self.logger.error("Cannot move motor at a power percent that is nearly 0")
