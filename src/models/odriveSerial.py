@@ -13,7 +13,7 @@ from viam.components.motor import Motor
 
 import odrive
 from odrive.enums import *
-from threading import Thread
+from threading import Thread, Event
 from concurrent.futures import ThreadPoolExecutor
 import asyncio
 import time
@@ -24,6 +24,8 @@ MINUTE_TO_SECOND = 60
 
 
 # TODO: automatically reconnect
+# TODO: how to clear errors?
+# TODO: needs concurrency control for rapidly issued api calls
 class OdriveSerial(Motor, EasyResource):
     MODEL: ClassVar[Model] = Model(ModelFamily("viam", "odrive"), "serial")
     serial_number: str
@@ -33,6 +35,8 @@ class OdriveSerial(Motor, EasyResource):
     offset: float
     odrv: Any
     watchdog_timeout: float
+    vel_limit: float
+    _stop_event: Any
 
     @classmethod
     def new(cls, config: ComponentConfig, dependencies: Mapping[ResourceName, ResourceBase]) -> Self:
@@ -57,8 +61,9 @@ class OdriveSerial(Motor, EasyResource):
         odriveSerial.torque_constant = odriveSerial.odrv.axis0.config.motor.torque_constant
         odriveSerial.current_lim = odriveSerial.odrv.axis0.config.general_lockin.current
         odriveSerial.watchdog_timeout = odriveSerial.odrv.axis0.config.watchdog_timeout
+        odriveSerial.vel_limit = odriveSerial.odrv.axis0.controller.config.vel_limit
 
-        # TODO: these need to be stopped!!!
+        odriveSerial._stop_event = Event()
         Thread(target=odriveSerial._periodically_surface_errors, daemon=True).start()
 
         if odriveSerial.odrv.axis0.config.enable_watchdog:
@@ -68,34 +73,47 @@ class OdriveSerial(Motor, EasyResource):
         return odriveSerial
 
     def _periodically_surface_errors(self):
-        while True:
+        while not self._stop_event.is_set():
             asyncio.run(self.surface_errors())
-            time.sleep(1)
+            self._stop_event.wait(1)
 
     def _periodically_feed_watchdog(self):
         interval = self.watchdog_timeout / 4
-        while True:
+        while not self._stop_event.is_set():
             self.odrv.axis0.watchdog_feed()
-            time.sleep(interval)
+            self._stop_event.wait(interval)
+        self.logger.debug("Watchdog thread stopped.")
+
+
+    async def close(self):
+        self._stop_event.set()
 
     @classmethod
     def validate_config(cls, config: ComponentConfig) -> Tuple[Sequence[str], Sequence[str]]:
         return [], []
 
     async def set_power(self, power: float, *, extra: Optional[Dict[str, Any]] = None, timeout: Optional[float] = None, **kwargs):
-        if abs(power) < 0.001:
-            self.logger.error("Cannot move motor at a power percent that is nearly 0")
-        torque = power * self.current_lim * self.torque_constant
+        if not self.odrv.axis0.controller.config.enable_vel_limit:
+            raise Exception("set_power requires enable_vel_limit to be True")
+        if abs(power) < 0.0001:
+            self.logger.debug(f"Power is nearly 0, stopping.")
+            await self.stop()
+            return
+
+        vel = power * self.vel_limit
         self.odrv.axis0.controller.config.input_mode = InputMode.PASSTHROUGH
-        self.odrv.axis0.controller.config.control_mode = ControlMode.TORQUE_CONTROL
-        self.odrv.axis0.requested_state = AxisState.CLOSED_LOOP_CONTROL
-        await self.wait_until_correct_state(AxisState.CLOSED_LOOP_CONTROL)
-        # the line below causes motion.
-        self.odrv.axis0.controller.input_torque = torque
+        self.odrv.axis0.controller.config.control_mode = ControlMode.VELOCITY_CONTROL
+        if self.odrv.axis0.current_state != AxisState.CLOSED_LOOP_CONTROL:
+            self.odrv.axis0.requested_state = AxisState.CLOSED_LOOP_CONTROL
+            await self.wait_until_correct_state(AxisState.CLOSED_LOOP_CONTROL)
+        self.odrv.axis0.controller.input_vel = vel
+
 
     async def go_for(self, rpm: float, revolutions: float, *, extra: Optional[Dict[str, Any]] = None, timeout: Optional[float] = None, **kwargs):
         if abs(rpm) < 0.001:
-            self.logger.error("Cannot move motor at an RPM that is nearly 0")
+            self.logger.warn("Cannot move motor at an RPM that is nearly 0, stopping.")
+            await self.stop()
+            return
 
         rps = rpm / MINUTE_TO_SECOND
         await self.configure_trap_trajectory(abs(rpm))
@@ -112,12 +130,16 @@ class OdriveSerial(Motor, EasyResource):
     async def set_rpm(self, rpm: float, *, extra: Optional[Dict[str, Any]] = None, timeout: Optional[float] = None, **kwargs):
         # TODO these should return an error, not just log in
         if abs(rpm) < 0.001:
-            self.logger.error("Cannot move motor at an RPM that is nearly 0")
+            self.logger.warn("Cannot move motor at an RPM that is nearly 0, stopping.")
+            await self.stop()
+            return
+
         rps = rpm / MINUTE_TO_SECOND
         self.odrv.axis0.controller.config.input_mode = InputMode.PASSTHROUGH
         self.odrv.axis0.controller.config.control_mode = ControlMode.VELOCITY_CONTROL
-        self.odrv.axis0.requested_state = AxisState.CLOSED_LOOP_CONTROL
-        await self.wait_until_correct_state(AxisState.CLOSED_LOOP_CONTROL)
+        if self.odrv.axis0.current_state != AxisState.CLOSED_LOOP_CONTROL:
+            self.odrv.axis0.requested_state = AxisState.CLOSED_LOOP_CONTROL
+            await self.wait_until_correct_state(AxisState.CLOSED_LOOP_CONTROL)
         self.odrv.axis0.controller.input_vel = rps
 
     async def reset_zero_position(self, offset: float, *, extra: Optional[Dict[str, Any]] = None, timeout: Optional[float] = None, **kwargs):
@@ -147,11 +169,14 @@ class OdriveSerial(Motor, EasyResource):
 
     async def configure_trap_trajectory(self, rpm) -> None:
         rps = rpm / MINUTE_TO_SECOND
+        
+        # TODO: vel_limit should be reset to the previous value afterward?
         self.odrv.axis0.trap_traj.config.vel_limit = rps
         self.odrv.axis0.controller.config.input_mode = InputMode.TRAP_TRAJ
         self.odrv.axis0.controller.config.control_mode = ControlMode.POSITION_CONTROL
-        self.odrv.axis0.requested_state = AxisState.CLOSED_LOOP_CONTROL
-        await self.wait_until_correct_state(AxisState.CLOSED_LOOP_CONTROL)
+        if self.odrv.axis0.current_state != AxisState.CLOSED_LOOP_CONTROL:
+            self.odrv.axis0.requested_state = AxisState.CLOSED_LOOP_CONTROL
+            await self.wait_until_correct_state(AxisState.CLOSED_LOOP_CONTROL)
     
     async def wait_until_correct_state(self, state):
         while self.odrv.axis0.current_state != state:
