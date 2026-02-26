@@ -22,6 +22,8 @@ from utils import set_configs
 
 MINUTE_TO_SECOND = 60
 
+
+# TODO: automatically reconnect
 class OdriveSerial(Motor, EasyResource):
     MODEL: ClassVar[Model] = Model(ModelFamily("viam", "odrive"), "serial")
     serial_number: str
@@ -30,6 +32,7 @@ class OdriveSerial(Motor, EasyResource):
     current_lim: float
     offset: float
     odrv: Any
+    watchdog_timeout: float
 
     @classmethod
     def new(cls, config: ComponentConfig, dependencies: Mapping[ResourceName, ResourceBase]) -> Self:
@@ -38,6 +41,7 @@ class OdriveSerial(Motor, EasyResource):
         odriveSerial.odrive_config_file = config.attributes.fields["odrive_config_file"].string_value
         odriveSerial.offset = 0
 
+        # TODO: there must be a better way to do this. Maybe call the sync function?
         with ThreadPoolExecutor(max_workers=1) as executor:
             if odriveSerial.serial_number == "":
                 odriveSerial.logger.warning("If you are using multiple Odrive controllers, make sure to add their respective serial_number to each component attributes")
@@ -46,13 +50,20 @@ class OdriveSerial(Motor, EasyResource):
                 odriveSerial.odrv = executor.submit(odrive.find_any, serial_number=odriveSerial.serial_number).result()
         odriveSerial.odrv.clear_errors()
         
+        # TODO: monitor the file and reinit if it changes
         if odriveSerial.odrive_config_file != "":
             set_configs(odriveSerial.odrv, odriveSerial.odrive_config_file)
         
         odriveSerial.torque_constant = odriveSerial.odrv.axis0.config.motor.torque_constant
         odriveSerial.current_lim = odriveSerial.odrv.axis0.config.general_lockin.current
+        odriveSerial.watchdog_timeout = odriveSerial.odrv.axis0.config.watchdog_timeout
 
+        # TODO: these need to be stopped!!!
         Thread(target=odriveSerial._periodically_surface_errors, daemon=True).start()
+
+        if odriveSerial.odrv.axis0.config.enable_watchdog:
+            odriveSerial.logger.info("Starting watchdog feed thread for axis0, as it is enabled.")
+            Thread(target=odriveSerial._periodically_feed_watchdog, daemon=True).start()
 
         return odriveSerial
 
@@ -60,6 +71,12 @@ class OdriveSerial(Motor, EasyResource):
         while True:
             asyncio.run(self.surface_errors())
             time.sleep(1)
+
+    def _periodically_feed_watchdog(self):
+        interval = self.watchdog_timeout / 4
+        while True:
+            self.odrv.axis0.watchdog_feed()
+            time.sleep(interval)
 
     @classmethod
     def validate_config(cls, config: ComponentConfig) -> Tuple[Sequence[str], Sequence[str]]:
@@ -79,6 +96,7 @@ class OdriveSerial(Motor, EasyResource):
     async def go_for(self, rpm: float, revolutions: float, *, extra: Optional[Dict[str, Any]] = None, timeout: Optional[float] = None, **kwargs):
         if abs(rpm) < 0.001:
             self.logger.error("Cannot move motor at an RPM that is nearly 0")
+
         rps = rpm / MINUTE_TO_SECOND
         await self.configure_trap_trajectory(abs(rpm))
         current_position = await self.get_position()
@@ -92,6 +110,7 @@ class OdriveSerial(Motor, EasyResource):
         await self.go_for(rpm, revolutions)
 
     async def set_rpm(self, rpm: float, *, extra: Optional[Dict[str, Any]] = None, timeout: Optional[float] = None, **kwargs):
+        # TODO these should return an error, not just log in
         if abs(rpm) < 0.001:
             self.logger.error("Cannot move motor at an RPM that is nearly 0")
         rps = rpm / MINUTE_TO_SECOND
