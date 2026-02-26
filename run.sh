@@ -5,9 +5,9 @@ cd `dirname $0`
 VENV_NAME="venv"
 PYTHON="$VENV_NAME/bin/python"
 
-python3 -m venv $VENV_NAME
-$PYTHON -m pip install -r requirements.txt -U # remove -U if viam-sdk should not be upgraded whenever possible
+sh ./setup.sh
 
 # Be sure to use `exec` so that termination signals reach the python process,
 # or handle forwarding termination signals manually
-exec $PYTHON -m odrivemotor.src.main $@
+echo "Starting module..."
+exec PYTHONPATH="src:$PYTHONPATH" $PYTHON -m src.main $@
