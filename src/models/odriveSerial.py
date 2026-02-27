@@ -30,7 +30,6 @@ class OdriveSerial(Motor, EasyResource):
     MODEL: ClassVar[Model] = Model(ModelFamily("viam", "odrive"), "serial")
     serial_number: str
     odrive_config_file: str
-    torque_constant: float
     current_lim: float
     offset: float
     odrv: Any
@@ -58,20 +57,13 @@ class OdriveSerial(Motor, EasyResource):
         if odriveSerial.odrive_config_file != "":
             set_configs(odriveSerial.odrv, odriveSerial.odrive_config_file)
 
-        _SPECIAL_FLOATS = {"Infinity": float("inf"), "-Infinity": float("-inf"), "NaN": float("nan")}
         if "overrides" in config.attributes.fields:
-            for key, value in config.attributes.fields["overrides"].struct_value.fields.items():
-                kind = value.WhichOneof("kind")
-                if kind == "number_value":
-                    rsetattr(odriveSerial.odrv, key, value.number_value)
-                elif kind == "bool_value":
-                    rsetattr(odriveSerial.odrv, key, value.bool_value)
-                elif kind == "string_value" and value.string_value in _SPECIAL_FLOATS:
-                    rsetattr(odriveSerial.odrv, key, _SPECIAL_FLOATS[value.string_value])
-                else:
-                    odriveSerial.logger.warning(f"Override '{key}' has unsupported type '{kind}', skipping")
+            overrides = {k: v.number_value if v.WhichOneof("kind") == "number_value"
+                           else v.bool_value if v.WhichOneof("kind") == "bool_value"
+                           else v.string_value
+                         for k, v in config.attributes.fields["overrides"].struct_value.fields.items()}
+            odriveSerial._apply_overrides(overrides)
         
-        odriveSerial.torque_constant = odriveSerial.odrv.axis0.config.motor.torque_constant
         odriveSerial.current_lim = odriveSerial.odrv.axis0.config.general_lockin.current
         odriveSerial.watchdog_timeout = odriveSerial.odrv.axis0.config.watchdog_timeout
         odriveSerial.vel_limit = odriveSerial.odrv.axis0.controller.config.vel_limit
@@ -84,6 +76,19 @@ class OdriveSerial(Motor, EasyResource):
             Thread(target=odriveSerial._periodically_feed_watchdog, daemon=True).start()
 
         return odriveSerial
+
+    _SPECIAL_FLOATS = {"Infinity": float("inf"), "-Infinity": float("-inf"), "NaN": float("nan")}
+
+    def _apply_overrides(self, overrides: Mapping[str, Any]) -> None:
+        for key, value in overrides.items():
+            if isinstance(value, bool):
+                rsetattr(self.odrv, key, value)
+            elif isinstance(value, (int, float)):
+                rsetattr(self.odrv, key, value)
+            elif isinstance(value, str) and value in self._SPECIAL_FLOATS:
+                rsetattr(self.odrv, key, self._SPECIAL_FLOATS[value])
+            else:
+                self.logger.warning(f"Override '{key}' has unsupported value '{value}', skipping")
 
     def _periodically_surface_errors(self):
         while not self._stop_event.is_set():
@@ -178,6 +183,7 @@ class OdriveSerial(Motor, EasyResource):
         return []
 
     async def do_command(self, command: Mapping[str, ValueTypes], *, timeout: Optional[float] = None, **kwargs) -> Mapping[str, ValueTypes]:
+        self._apply_overrides(command)
         return {}
 
     async def configure_trap_trajectory(self, rpm) -> None:
