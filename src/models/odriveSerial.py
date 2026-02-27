@@ -18,7 +18,7 @@ from concurrent.futures import ThreadPoolExecutor
 import asyncio
 import time
 import math
-from utils import set_configs
+from utils import set_configs, rsetattr
 
 MINUTE_TO_SECOND = 60
 
@@ -57,6 +57,19 @@ class OdriveSerial(Motor, EasyResource):
         # TODO: monitor the file and reinit if it changes
         if odriveSerial.odrive_config_file != "":
             set_configs(odriveSerial.odrv, odriveSerial.odrive_config_file)
+
+        _SPECIAL_FLOATS = {"Infinity": float("inf"), "-Infinity": float("-inf"), "NaN": float("nan")}
+        if "overrides" in config.attributes.fields:
+            for key, value in config.attributes.fields["overrides"].struct_value.fields.items():
+                kind = value.WhichOneof("kind")
+                if kind == "number_value":
+                    rsetattr(odriveSerial.odrv, key, value.number_value)
+                elif kind == "bool_value":
+                    rsetattr(odriveSerial.odrv, key, value.bool_value)
+                elif kind == "string_value" and value.string_value in _SPECIAL_FLOATS:
+                    rsetattr(odriveSerial.odrv, key, _SPECIAL_FLOATS[value.string_value])
+                else:
+                    odriveSerial.logger.warning(f"Override '{key}' has unsupported type '{kind}', skipping")
         
         odriveSerial.torque_constant = odriveSerial.odrv.axis0.config.motor.torque_constant
         odriveSerial.current_lim = odriveSerial.odrv.axis0.config.general_lockin.current
