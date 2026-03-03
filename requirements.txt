@@ -1,5 +1,3 @@
 odrive==0.6.10.post0
-python-can==4.2.1
-cantools==38.0.2
 viam-sdk==0.71.0
 typing-extensions
