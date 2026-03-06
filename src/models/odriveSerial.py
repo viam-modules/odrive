@@ -24,14 +24,12 @@ MINUTE_TO_SECOND = 60
 
 
 # TODO: automatically reconnect
-# TODO: how to clear errors?
 # TODO: needs concurrency control for rapidly issued api calls
 class OdriveSerial(Motor, EasyResource):
     MODEL: ClassVar[Model] = Model(ModelFamily("viam", "odrive"), "serial")
     serial_number: str
     odrive_config_file: str
     current_lim: float
-    offset: float
     odrv: Any
     watchdog_timeout: float
     vel_limit: float
@@ -42,9 +40,8 @@ class OdriveSerial(Motor, EasyResource):
         odriveSerial = cls(config.name)
         odriveSerial.serial_number = config.attributes.fields["serial_number"].string_value
         odriveSerial.odrive_config_file = config.attributes.fields["odrive_config_file"].string_value
-        odriveSerial.offset = 0
 
-        # TODO: there must be a better way to do this. Maybe call the sync function?
+        # TODO: there must be a better way to do this. asyncio.run is called within the odrive sdk which is not allowed as we are already in an event loop here.
         with ThreadPoolExecutor(max_workers=1) as executor:
             if odriveSerial.serial_number == "":
                 odriveSerial.logger.warning("If you are using multiple Odrive controllers, make sure to add their respective serial_number to each component attributes")
@@ -53,7 +50,6 @@ class OdriveSerial(Motor, EasyResource):
                 odriveSerial.odrv = executor.submit(odrive.find_any, serial_number=odriveSerial.serial_number).result()
         odriveSerial.odrv.clear_errors()
         
-        # TODO: monitor the file and reinit if it changes
         if odriveSerial.odrive_config_file != "":
             set_configs(odriveSerial.odrv, odriveSerial.odrive_config_file)
 
@@ -79,7 +75,7 @@ class OdriveSerial(Motor, EasyResource):
 
     _SPECIAL_FLOATS = {"Infinity": float("inf"), "-Infinity": float("-inf"), "NaN": float("nan")}
 
-    def _apply_overrides(self, overrides: Mapping[str, Any]) -> None:
+    def _apply_overrides(self, overrides: Dict[str, Any]) -> None:
         for key, value in overrides.items():
             if isinstance(value, bool):
                 rsetattr(self.odrv, key, value)
@@ -110,9 +106,11 @@ class OdriveSerial(Motor, EasyResource):
     def validate_config(cls, config: ComponentConfig) -> Tuple[Sequence[str], Sequence[str]]:
         return [], []
 
+    # set_power is defined as a percentage of maximum configured velocity
     async def set_power(self, power: float, *, extra: Optional[Dict[str, Any]] = None, timeout: Optional[float] = None, **kwargs):
         if not self.odrv.axis0.controller.config.enable_vel_limit:
             raise Exception("set_power requires enable_vel_limit to be True")
+
         if abs(power) < 0.0001:
             self.logger.debug(f"Power is nearly 0, stopping.")
             await self.stop()
@@ -129,7 +127,7 @@ class OdriveSerial(Motor, EasyResource):
 
     async def go_for(self, rpm: float, revolutions: float, *, extra: Optional[Dict[str, Any]] = None, timeout: Optional[float] = None, **kwargs):
         if abs(rpm) < 0.001:
-            self.logger.warn("Cannot move motor at an RPM that is nearly 0, stopping.")
+            self.logger.warn("Requested RPM is nearly 0, stopping.")
             await self.stop()
             return
 
@@ -137,7 +135,7 @@ class OdriveSerial(Motor, EasyResource):
         await self.configure_trap_trajectory(abs(rpm))
         current_position = await self.get_position()
         # the line below causes motion.
-        self.odrv.axis0.controller.input_pos = current_position + math.copysign(revolutions, rpm) + self.offset
+        self.odrv.axis0.controller.input_pos = current_position + math.copysign(revolutions, rpm)
         await self.wait_and_set_to_idle(rps, revolutions)
 
     async def go_to(self, rpm: float, position_revolutions: float, *, extra: Optional[Dict[str, Any]] = None, timeout: Optional[float] = None, **kwargs):
@@ -148,7 +146,7 @@ class OdriveSerial(Motor, EasyResource):
     async def set_rpm(self, rpm: float, *, extra: Optional[Dict[str, Any]] = None, timeout: Optional[float] = None, **kwargs):
         # TODO these should return an error, not just log in
         if abs(rpm) < 0.001:
-            self.logger.warn("Cannot move motor at an RPM that is nearly 0, stopping.")
+            self.logger.debug("Cannot move motor at an RPM that is nearly 0, stopping.")
             await self.stop()
             return
 
@@ -161,11 +159,13 @@ class OdriveSerial(Motor, EasyResource):
         self.odrv.axis0.controller.input_vel = rps
 
     async def reset_zero_position(self, offset: float, *, extra: Optional[Dict[str, Any]] = None, timeout: Optional[float] = None, **kwargs):
-        position = await self.get_position()
-        self.offset += position
+        if await self.is_powered():
+            raise Exception("Cannot reset zero position while motor is powered. Motor must be stopped.")
+
+        self.odrv.axis0.pos_estimate = float
 
     async def get_position(self, *, extra: Optional[Dict[str, Any]] = None, timeout: Optional[float] = None, **kwargs):
-        return self.odrv.axis0.pos_vel_mapper.pos_rel - self.offset
+        return self.odrv.axis0.pos_estimate
 
     async def get_properties(self, *, extra: Optional[Dict[str, Any]] = None, timeout: Optional[float] = None, **kwargs) -> Motor.Properties:
         return Motor.Properties(position_reporting=True)
@@ -182,8 +182,13 @@ class OdriveSerial(Motor, EasyResource):
     async def get_geometries(self, *, extra: Optional[Dict[str, Any]] = None, timeout: Optional[float] = None) -> List[Geometry]:
         return []
 
+
     async def do_command(self, command: Mapping[str, ValueTypes], *, timeout: Optional[float] = None, **kwargs) -> Mapping[str, ValueTypes]:
-        self._apply_overrides(command)
+        # "run" expects an array of objects (for ordering) where each object is a key/value pair to set on the motor.
+        if "run" in command:
+            # these must be sent in order
+            for item in command["run"]:
+                self._apply_overrides(item)
         return {}
 
     async def configure_trap_trajectory(self, rpm) -> None:
