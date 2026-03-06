@@ -131,12 +131,14 @@ class OdriveSerial(Motor, EasyResource):
             await self.stop()
             return
 
-        rps = rpm / MINUTE_TO_SECOND
         await self.configure_trap_trajectory(abs(rpm))
         current_position = await self.get_position()
-        # the line below causes motion.
-        self.odrv.axis0.controller.input_pos = current_position + math.copysign(revolutions, rpm)
-        await self.wait_and_set_to_idle(rps, revolutions)
+        if math.copysign(1, rpm) == math.copysign(1, revolutions):
+            target = current_position + abs(revolutions)
+        else:
+            target = current_position - abs(revolutions)
+        self.odrv.axis0.controller.input_pos = target
+        await self.wait_and_set_to_idle(target)
 
     async def go_to(self, rpm: float, position_revolutions: float, *, extra: Optional[Dict[str, Any]] = None, timeout: Optional[float] = None, **kwargs):
         current_position = await self.get_position()
@@ -159,10 +161,11 @@ class OdriveSerial(Motor, EasyResource):
         self.odrv.axis0.controller.input_vel = rps
 
     async def reset_zero_position(self, offset: float, *, extra: Optional[Dict[str, Any]] = None, timeout: Optional[float] = None, **kwargs):
-        if await self.is_powered():
+        powered, _ = await self.is_powered()
+        if powered:
             raise Exception("Cannot reset zero position while motor is powered. Motor must be stopped.")
 
-        self.odrv.axis0.pos_estimate = float
+        self.odrv.axis0.pos_estimate = offset
 
     async def get_position(self, *, extra: Optional[Dict[str, Any]] = None, timeout: Optional[float] = None, **kwargs):
         return self.odrv.axis0.pos_estimate
@@ -174,7 +177,7 @@ class OdriveSerial(Motor, EasyResource):
         self.odrv.axis0.requested_state = AxisState.IDLE
 
     async def is_powered(self, *, extra: Optional[Dict[str, Any]] = None, timeout: Optional[float] = None, **kwargs) -> Tuple[bool, float]:
-        return (self.odrv.axis0.current_state != AxisState.IDLE and self.odrv.axis0.current_state != AxisState.UNDEFINED, self.odrv.axis0.motor.foc.Iq_setpoint/self.current_lim)
+        return (self.odrv.axis0.current_state != AxisState.IDLE and self.odrv.axis0.current_state != AxisState.UNDEFINED, 0)
 
     async def is_moving(self):
         return self.odrv.axis0.current_state != AxisState.IDLE
@@ -207,15 +210,23 @@ class OdriveSerial(Motor, EasyResource):
             await self.surface_errors()
             continue
 
-    # Function to wait 1.05% of time we expect go for to take, and set the motor to IDLE
-    async def wait_and_set_to_idle(self, rps, revolutions):
-        time_sleep = abs(revolutions / rps) * 1.05
-        await asyncio.sleep(time_sleep)
-        if self.odrv.vbus_voltage < .15:
-            await self.stop()
-        else:
-            self.logger.warning(f"voltage ({self.odrv.vbus_voltage}) above expected value (.15) after waiting revolutions / rps * 1.05 = {time_sleep} seconds. Remaining in CLOSED_LOOP_CONTROL mode")
-        
+    # wait until the desired position is reached and stop the motor. a little fuzzy
+    async def wait_and_set_to_idle(self, target: float):
+        prev_position = await self.get_position()
+
+        while True:
+            current_position = await self.get_position()
+
+            near_target = abs(current_position - target) < 0.05  # "close enough" to target
+            not_moving = abs(current_position - prev_position) < 0.005 # little change in position
+
+            if near_target and not_moving:
+                await self.stop()
+                return
+
+            prev_position = current_position
+            await asyncio.sleep(0.05)
+
     async def surface_errors(self):
         errorCode = self.odrv.axis0.active_errors
         disarmReason = self.odrv.axis0.disarm_reason
