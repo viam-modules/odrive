@@ -1,21 +1,29 @@
 {
+  "$schema": "https://dl.viam.dev/module.schema.json",
   "module_id": "viam:odrive",
   "visibility": "public",
   "url": "https://github.com/viam-modules/odrive",
-  "description": "This module implements the motor API to work with the ODrive (S1 and Pro) motor controller. The `serial` implementation has been tested on darwin and linux, while the `canbus` implementation has only been tested on linux",
+  "description": "This module implements the motor API to work with the ODrive (S1 and Pro) motor controller.",
   "models": [
     {
       "api": "rdk:component:motor",
       "model": "viam:odrive:serial",
       "markdown_link": "README.md#model-viamodriveserial",
       "short_description": "motor model for ODrive motors connected via serial."
-    },
-    {
-      "api": "rdk:component:motor",
-      "model": "viam:odrive:canbus",
-      "markdown_link": "README.md#model-viamodrivecanbus",
-      "short_description": "motor model for ODrive motors connected via canbus."
     }
   ],
-  "entrypoint": "run.sh"
+  "applications": null,
+  "markdown_link": "README.md",
+  "entrypoint": "dist/main",
+  "first_run": "",
+  "build": {
+    "build": "./build.sh",
+    "setup": "./setup.sh",
+    "path": "dist/archive.tar.gz",
+    "arch": [
+      "linux/amd64",
+      "linux/arm64",
+      "darwin/arm64"
+    ]
+  }
 }
