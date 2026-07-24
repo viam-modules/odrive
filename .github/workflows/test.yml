@@ -1,0 +1,97 @@
+name: Build & Test
+
+concurrency:
+  group: test-${{ github.workflow }}-${{ github.head_ref || github.ref }}
+  cancel-in-progress: true
+
+on:
+  pull_request:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  # There is no unit test suite in this repo, so the meaningful signal for a
+  # dependency bump is: do the pinned deps still resolve, and does the module
+  # source still compile and import against them?
+  check:
+    name: Compile & import (py${{ matrix.python-version }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ['3.11', '3.12']
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+          cache-dependency-path: requirements.txt
+
+      - name: Validate meta.json
+        run: python -c "import json; json.load(open('meta.json'))"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Byte-compile module source
+        run: python -m compileall -q src
+
+      # main.py is run with src on the path, so import it the same way.
+      - name: Import smoke check
+        working-directory: src
+        run: python -c "import main"
+
+  # Exercise the same scripts the viam build-action runs at release time, so a
+  # broken setup.sh/build.sh fails on the PR instead of on the release tag.
+  # Arches mirror meta.json's build.arch list.
+  build:
+    name: Module build (${{ matrix.label }})
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: ubuntu-latest
+            label: linux/amd64
+          - runner: ubuntu-24.04-arm
+            label: linux/arm64
+          - runner: macos-latest
+            label: darwin/arm64
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: ./setup.sh
+        run: ./setup.sh
+
+      - name: ./build.sh
+        run: ./build.sh
+
+      # meta.json declares entrypoint dist/main and build.path dist/archive.tar.gz.
+      - name: Verify build artifacts
+        run: |
+          test -x dist/main
+          test -f dist/archive.tar.gz
+          tar -tzf dist/archive.tar.gz
+
+      # --help exits 0 and forces the frozen binary to load its bundled imports,
+      # which is where PyInstaller hidden-import breakage shows up.
+      - name: Smoke test built binary
+        run: ./dist/main --help
