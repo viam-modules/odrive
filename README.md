@@ -51,6 +51,6 @@ You must define `axis0.controller.config.vel_limit` (velocity limit, in rotation
 - To view examples using a motor component, explore [these tutorials](https://docs.viam.com/tutorials/).
 
 ## License
-Copyright 2021-2023 Viam Inc.
+Copyright 2021-2026 Viam Inc.
 
 Apache 2.0 - See [LICENSE](https://github.com/viamrobotics/odrive/blob/main/LICENSE) file
