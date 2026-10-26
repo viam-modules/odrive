@@ -1,24 +1,21 @@
-from typing import ClassVar, Mapping, Any, Dict, Optional, Sequence, Tuple, List
+import asyncio
+import math
+from concurrent.futures import ThreadPoolExecutor
+from threading import Event, Thread
+from typing import Any, ClassVar, Dict, List, Mapping, Optional, Sequence, Tuple
 
+import odrive
+from odrive.enums import *
 from typing_extensions import Self
-
+from viam.components.motor import Motor
 from viam.proto.app.robot import ComponentConfig
-from viam.proto.common import ResourceName, Geometry
+from viam.proto.common import Geometry, ResourceName
 from viam.resource.base import ResourceBase
 from viam.resource.easy_resource import EasyResource
 from viam.resource.types import Model, ModelFamily
 from viam.utils import ValueTypes
 
-from viam.components.motor import Motor
-
-import odrive
-from odrive.enums import *
-from threading import Thread, Event
-from concurrent.futures import ThreadPoolExecutor
-import asyncio
-import time
-import math
-from utils import set_configs, rsetattr
+from utils import rsetattr, set_configs
 
 MINUTE_TO_SECOND = 60
 
