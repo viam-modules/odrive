@@ -44,22 +44,28 @@ class OdriveSerial(Motor, EasyResource):
         # TODO: there must be a better way to do this. asyncio.run is called within the odrive sdk which is not allowed as we are already in an event loop here.
         with ThreadPoolExecutor(max_workers=1) as executor:
             if odriveSerial.serial_number == "":
-                odriveSerial.logger.warning("If you are using multiple Odrive controllers, make sure to add their respective serial_number to each component attributes")
+                odriveSerial.logger.warning(
+                    "If you are using multiple Odrive controllers, make sure to add their respective serial_number to each component attributes"
+                )
                 odriveSerial.odrv = executor.submit(odrive.find_any).result()
             else:
                 odriveSerial.odrv = executor.submit(odrive.find_any, serial_number=odriveSerial.serial_number).result()
         odriveSerial.odrv.clear_errors()
-        
+
         if odriveSerial.odrive_config_file != "":
             set_configs(odriveSerial.odrv, odriveSerial.odrive_config_file)
 
         if "overrides" in config.attributes.fields:
-            overrides = {k: v.number_value if v.WhichOneof("kind") == "number_value"
-                           else v.bool_value if v.WhichOneof("kind") == "bool_value"
-                           else v.string_value
-                         for k, v in config.attributes.fields["overrides"].struct_value.fields.items()}
+            overrides = {
+                k: v.number_value
+                if v.WhichOneof("kind") == "number_value"
+                else v.bool_value
+                if v.WhichOneof("kind") == "bool_value"
+                else v.string_value
+                for k, v in config.attributes.fields["overrides"].struct_value.fields.items()
+            }
             odriveSerial._apply_overrides(overrides)
-        
+
         odriveSerial.current_lim = odriveSerial.odrv.axis0.config.general_lockin.current
         odriveSerial.watchdog_timeout = odriveSerial.odrv.axis0.config.watchdog_timeout
         odriveSerial.vel_limit = odriveSerial.odrv.axis0.controller.config.vel_limit
@@ -98,7 +104,6 @@ class OdriveSerial(Motor, EasyResource):
             self._stop_event.wait(interval)
         self.logger.debug("Watchdog thread stopped.")
 
-
     async def close(self):
         self._stop_event.set()
 
@@ -107,7 +112,9 @@ class OdriveSerial(Motor, EasyResource):
         return [], []
 
     # set_power is defined as a percentage of maximum configured velocity
-    async def set_power(self, power: float, *, extra: Optional[Dict[str, Any]] = None, timeout: Optional[float] = None, **kwargs):
+    async def set_power(
+        self, power: float, *, extra: Optional[Dict[str, Any]] = None, timeout: Optional[float] = None, **kwargs
+    ):
         if not self.odrv.axis0.controller.config.enable_vel_limit:
             raise Exception("set_power requires enable_vel_limit to be True")
 
@@ -124,8 +131,15 @@ class OdriveSerial(Motor, EasyResource):
             await self.wait_until_correct_state(AxisState.CLOSED_LOOP_CONTROL)
         self.odrv.axis0.controller.input_vel = vel
 
-
-    async def go_for(self, rpm: float, revolutions: float, *, extra: Optional[Dict[str, Any]] = None, timeout: Optional[float] = None, **kwargs):
+    async def go_for(
+        self,
+        rpm: float,
+        revolutions: float,
+        *,
+        extra: Optional[Dict[str, Any]] = None,
+        timeout: Optional[float] = None,
+        **kwargs,
+    ):
         if abs(rpm) < 0.001:
             self.logger.warn("Requested RPM is nearly 0, stopping.")
             await self.stop()
@@ -140,12 +154,22 @@ class OdriveSerial(Motor, EasyResource):
         self.odrv.axis0.controller.input_pos = target
         await self.wait_and_set_to_idle(target)
 
-    async def go_to(self, rpm: float, position_revolutions: float, *, extra: Optional[Dict[str, Any]] = None, timeout: Optional[float] = None, **kwargs):
+    async def go_to(
+        self,
+        rpm: float,
+        position_revolutions: float,
+        *,
+        extra: Optional[Dict[str, Any]] = None,
+        timeout: Optional[float] = None,
+        **kwargs,
+    ):
         current_position = await self.get_position()
         revolutions = position_revolutions - current_position
         await self.go_for(rpm, revolutions)
 
-    async def set_rpm(self, rpm: float, *, extra: Optional[Dict[str, Any]] = None, timeout: Optional[float] = None, **kwargs):
+    async def set_rpm(
+        self, rpm: float, *, extra: Optional[Dict[str, Any]] = None, timeout: Optional[float] = None, **kwargs
+    ):
         # TODO these should return an error, not just log in
         if abs(rpm) < 0.001:
             self.logger.debug("Cannot move motor at an RPM that is nearly 0, stopping.")
@@ -160,7 +184,9 @@ class OdriveSerial(Motor, EasyResource):
             await self.wait_until_correct_state(AxisState.CLOSED_LOOP_CONTROL)
         self.odrv.axis0.controller.input_vel = rps
 
-    async def reset_zero_position(self, offset: float, *, extra: Optional[Dict[str, Any]] = None, timeout: Optional[float] = None, **kwargs):
+    async def reset_zero_position(
+        self, offset: float, *, extra: Optional[Dict[str, Any]] = None, timeout: Optional[float] = None, **kwargs
+    ):
         powered, _ = await self.is_powered()
         if powered:
             raise Exception("Cannot reset zero position while motor is powered. Motor must be stopped.")
@@ -170,23 +196,33 @@ class OdriveSerial(Motor, EasyResource):
     async def get_position(self, *, extra: Optional[Dict[str, Any]] = None, timeout: Optional[float] = None, **kwargs):
         return self.odrv.axis0.pos_estimate
 
-    async def get_properties(self, *, extra: Optional[Dict[str, Any]] = None, timeout: Optional[float] = None, **kwargs) -> Motor.Properties:
+    async def get_properties(
+        self, *, extra: Optional[Dict[str, Any]] = None, timeout: Optional[float] = None, **kwargs
+    ) -> Motor.Properties:
         return Motor.Properties(position_reporting=True)
 
     async def stop(self, *, extra: Optional[Dict[str, Any]] = None, timeout: Optional[float] = None, **kwargs):
         self.odrv.axis0.requested_state = AxisState.IDLE
 
-    async def is_powered(self, *, extra: Optional[Dict[str, Any]] = None, timeout: Optional[float] = None, **kwargs) -> Tuple[bool, float]:
-        return (self.odrv.axis0.current_state != AxisState.IDLE and self.odrv.axis0.current_state != AxisState.UNDEFINED, 0)
+    async def is_powered(
+        self, *, extra: Optional[Dict[str, Any]] = None, timeout: Optional[float] = None, **kwargs
+    ) -> Tuple[bool, float]:
+        return (
+            self.odrv.axis0.current_state != AxisState.IDLE and self.odrv.axis0.current_state != AxisState.UNDEFINED,
+            0,
+        )
 
     async def is_moving(self):
         return self.odrv.axis0.current_state != AxisState.IDLE
 
-    async def get_geometries(self, *, extra: Optional[Dict[str, Any]] = None, timeout: Optional[float] = None) -> List[Geometry]:
+    async def get_geometries(
+        self, *, extra: Optional[Dict[str, Any]] = None, timeout: Optional[float] = None
+    ) -> List[Geometry]:
         return []
 
-
-    async def do_command(self, command: Mapping[str, ValueTypes], *, timeout: Optional[float] = None, **kwargs) -> Mapping[str, ValueTypes]:
+    async def do_command(
+        self, command: Mapping[str, ValueTypes], *, timeout: Optional[float] = None, **kwargs
+    ) -> Mapping[str, ValueTypes]:
         # "run" expects an array of objects (for ordering) where each object is a key/value pair to set on the motor.
         if "run" in command:
             # these must be sent in order
@@ -196,7 +232,7 @@ class OdriveSerial(Motor, EasyResource):
 
     async def configure_trap_trajectory(self, rpm) -> None:
         rps = rpm / MINUTE_TO_SECOND
-        
+
         # TODO: vel_limit should be reset to the previous value afterward?
         self.odrv.axis0.trap_traj.config.vel_limit = rps
         self.odrv.axis0.controller.config.input_mode = InputMode.TRAP_TRAJ
@@ -204,7 +240,7 @@ class OdriveSerial(Motor, EasyResource):
         if self.odrv.axis0.current_state != AxisState.CLOSED_LOOP_CONTROL:
             self.odrv.axis0.requested_state = AxisState.CLOSED_LOOP_CONTROL
             await self.wait_until_correct_state(AxisState.CLOSED_LOOP_CONTROL)
-    
+
     async def wait_until_correct_state(self, state):
         while self.odrv.axis0.current_state != state:
             await self.surface_errors()
@@ -218,7 +254,7 @@ class OdriveSerial(Motor, EasyResource):
             current_position = await self.get_position()
 
             near_target = abs(current_position - target) < 0.05  # "close enough" to target
-            not_moving = abs(current_position - prev_position) < 0.005 # little change in position
+            not_moving = abs(current_position - prev_position) < 0.005  # little change in position
 
             if near_target and not_moving:
                 await self.stop()
@@ -230,7 +266,7 @@ class OdriveSerial(Motor, EasyResource):
     async def surface_errors(self):
         errorCode = self.odrv.axis0.active_errors
         disarmReason = self.odrv.axis0.disarm_reason
-        
+
         if errorCode != 0:
             await self.stop()
             self.logger.error(ODriveError(errorCode).name)
@@ -238,6 +274,6 @@ class OdriveSerial(Motor, EasyResource):
         if disarmReason != 0:
             await self.stop()
             self.logger.error(ODriveError(disarmReason).name)
-        
+
         if errorCode != 0 or disarmReason != 0:
             self.odrv.clear_errors()
