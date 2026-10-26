@@ -5,7 +5,7 @@ from threading import Event, Thread
 from typing import Any, ClassVar, Dict, List, Mapping, Optional, Sequence, Tuple
 
 import odrive
-from odrive.enums import *
+from odrive.enums import AxisState, ControlMode, InputMode, ODriveError
 from typing_extensions import Self
 from viam.components.motor import Motor
 from viam.proto.app.robot import ComponentConfig
@@ -116,7 +116,7 @@ class OdriveSerial(Motor, EasyResource):
             raise Exception("set_power requires enable_vel_limit to be True")
 
         if abs(power) < 0.0001:
-            self.logger.debug(f"Power is nearly 0, stopping.")
+            self.logger.debug("Power is nearly 0, stopping.")
             await self.stop()
             return
 
