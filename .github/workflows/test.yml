@@ -13,7 +13,32 @@ on:
 permissions:
   contents: read
 
+env:
+  RUFF_VERSION: '0.17.0'
+
 jobs:
+  lint:
+    name: Lint
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      # actions/checkout@v7.0.1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+
+      # astral-sh/ruff-action@v4.1.0
+      - name: ruff check
+        uses: astral-sh/ruff-action@278981a28ce3188b1e39527901f38254bf3aac89
+        with:
+          version: ${{ env.RUFF_VERSION }}
+          args: check
+
+      # astral-sh/ruff-action@v4.1.0
+      - name: ruff format
+        uses: astral-sh/ruff-action@278981a28ce3188b1e39527901f38254bf3aac89
+        with:
+          version: ${{ env.RUFF_VERSION }}
+          args: format --check
+
   # There is no unit test suite in this repo, so the meaningful signal for a
   # dependency bump is: do the pinned deps still resolve, and does the module
   # source still compile and import against them?
